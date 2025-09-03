@@ -1347,7 +1347,7 @@ async def rekber_fund_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     finally:
         cur.close()
-        from db_postgres import return_connection
+        from db_sqlite import return_connection
         return_connection(conn)
 
     await query.edit_message_text("✅ Konfirmasi transfer diterima. Menunggu verifikasi admin.")
@@ -2328,7 +2328,7 @@ async def payout_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     # Check if payout info already exists
-    from db_postgres import get_payout_info
+    from db_sqlite import get_payout_info
     existing_payout = get_payout_info(deal_id)
 
     if existing_payout:

@@ -92,7 +92,7 @@ async def rekber_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([InlineKeyboardButton("💰 Lanjut Pembayaran", callback_data=f"start_payment|{deal_id}")])
     
     if status in ["FUNDED", "AWAITING_CONFIRM"] and user_role == "SELLER":
-        from db_postgres import get_payout_info
+        from db_sqlite import get_payout_info
         payout = get_payout_info(deal_id)
         if not payout:
             keyboard.append([InlineKeyboardButton("💳 Isi Data Pencairan", callback_data=f"payout_start|{deal_id}")])

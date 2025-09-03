@@ -42,7 +42,7 @@ def fix_stuck_transaction(deal_id):
         print("✅ Status updated to FUNDED")
         
         # Log the fix
-        from db_postgres import log_action
+        from db_sqlite import log_action
         log_action(deal_id, 1, "ADMIN", "STATUS_FIX", "Fixed stuck WAITING_VERIFICATION status")
         
     elif tx['status'] == 'PENDING_FUNDING':
@@ -139,7 +139,7 @@ def fix_stuck_transaction(deal_id):
         print("✅ Status updated to FUNDED")
         
         # Log the fix
-        from db_postgres import log_action
+        from db_sqlite import log_action
         log_action(deal_id, 1, "ADMIN", "STATUS_FIX", "Fixed stuck WAITING_VERIFICATION status")
         
     elif tx['status'] == 'PENDING_FUNDING':

@@ -41,11 +41,11 @@ async def rekber_admin_verify(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     finally:
         cur.close()
-        from db_postgres import return_connection
+        from db_sqlite import return_connection
         return_connection(conn)
 
     # Log the verification
-    from db_postgres import log_action
+    from db_sqlite import log_action
     log_action(deal_id, query.from_user.id, "ADMIN", "VERIFY_PAYMENT", f"Admin verifikasi pembayaran untuk {title}")
 
     # Notifikasi ke pembeli
@@ -80,7 +80,7 @@ async def admin_release_final(update: Update, context: ContextTypes.DEFAULT_TYPE
         row = cur.fetchone()
     finally:
         cur.close()
-        from db_postgres import return_connection
+        from db_sqlite import return_connection
         return_connection(conn)
 
     if not row:
@@ -179,7 +179,7 @@ async def admin_release_execute(update: Update, context: ContextTypes.DEFAULT_TY
         return
     finally:
         cur.close()
-        from db_postgres import return_connection
+        from db_sqlite import return_connection
         return_connection(conn)
 
 
@@ -261,7 +261,7 @@ async def admin_confirm_payout(update: Update, context: ContextTypes.DEFAULT_TYP
         return
     finally:
         cur.close()
-        from db_postgres import return_connection
+        from db_sqlite import return_connection
         return_connection(conn)
 
 
@@ -371,7 +371,7 @@ async def rekber_admin_reject(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     finally:
         cur.close()
-        from db_postgres import return_connection
+        from db_sqlite import return_connection
         return_connection(conn)
 
     await query.edit_message_text(f"❌ Pembayaran untuk transaksi {deal_id} ditolak.")
@@ -425,7 +425,7 @@ async def rekber_admin_release(update: Update, context: ContextTypes.DEFAULT_TYP
         return
     finally:
         cur.close()
-        from db_postgres import return_connection
+        from db_sqlite import return_connection
         return_connection(conn)
 
 
@@ -464,7 +464,7 @@ async def rekber_admin_refund(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     finally:
         cur.close()
-        from db_postgres import return_connection
+        from db_sqlite import return_connection
         return_connection(conn)
 
 
