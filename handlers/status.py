@@ -1,7 +1,7 @@
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from db_postgres import get_connection
+from db_sqlite import get_connection
 from utils import format_rupiah
 import logging
 
@@ -19,7 +19,7 @@ async def rekber_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cur = conn.cursor()
     cur.execute("""
         SELECT id, title, amount, admin_fee, admin_fee_payer, buyer_id, seller_id, status, created_at
-        FROM deals WHERE id = %s
+        FROM deals WHERE id = ?
     """, (deal_id,))
     
     row = cur.fetchone()

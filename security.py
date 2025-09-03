@@ -111,7 +111,7 @@ def generate_secure_deal_id() -> str:
 
 def log_security_event(event_type: str, user_id: int, details: str):
     """Log security events untuk monitoring"""
-    from db_postgres import get_connection
+    from db_sqlite import get_connection
     conn = get_connection()
     cur = conn.cursor()
     
@@ -151,7 +151,7 @@ def check_admin_permission(user_id: int, action: str) -> bool:
 
 def validate_deal_access(deal_id: str, user_id: int) -> tuple[bool, str]:
     """Validasi apakah user berhak akses deal tertentu"""
-    from db_postgres import get_connection
+    from db_sqlite import get_connection
     
     conn = get_connection()
     cur = conn.cursor()

@@ -1,6 +1,6 @@
 
 import asyncio
-from db_postgres import get_connection
+from db_sqlite import get_connection
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -17,7 +17,7 @@ def fix_stuck_transaction(deal_id):
     cur.execute("""
         SELECT id, title, amount, buyer_id, seller_id, status, created_at
         FROM deals 
-        WHERE id = %s
+        WHERE id = ?
     """, (deal_id,))
     
     tx = cur.fetchone()
@@ -37,7 +37,7 @@ def fix_stuck_transaction(deal_id):
     # If status is WAITING_VERIFICATION, reset it to FUNDED for testing
     if tx['status'] == 'WAITING_VERIFICATION':
         print("\n🔧 Fixing stuck WAITING_VERIFICATION status...")
-        cur.execute("UPDATE deals SET status = %s WHERE id = %s", ("FUNDED", deal_id))
+        cur.execute("UPDATE deals SET status = ? WHERE id = ?", ("FUNDED", deal_id))
         conn.commit()
         print("✅ Status updated to FUNDED")
         
@@ -97,7 +97,7 @@ if __name__ == "__main__":
     else:
         list_stuck_transactions()
 import asyncio
-from db_postgres import get_connection
+from db_sqlite import get_connection
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -114,7 +114,7 @@ def fix_stuck_transaction(deal_id):
     cur.execute("""
         SELECT id, title, amount, buyer_id, seller_id, status, created_at
         FROM deals 
-        WHERE id = %s
+        WHERE id = ?
     """, (deal_id,))
     
     tx = cur.fetchone()
@@ -134,7 +134,7 @@ def fix_stuck_transaction(deal_id):
     # If status is WAITING_VERIFICATION, reset it to FUNDED for testing
     if tx['status'] == 'WAITING_VERIFICATION':
         print("\n🔧 Fixing stuck WAITING_VERIFICATION status...")
-        cur.execute("UPDATE deals SET status = %s WHERE id = %s", ("FUNDED", deal_id))
+        cur.execute("UPDATE deals SET status = ? WHERE id = ?", ("FUNDED", deal_id))
         conn.commit()
         print("✅ Status updated to FUNDED")
         

@@ -2,7 +2,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from telegram.ext import ContextTypes
-from db_postgres import get_connection
+from db_sqlite import get_connection
 from utils import format_rupiah
 import config
 
@@ -26,7 +26,7 @@ class NotificationManager:
             
             deal = cur.fetchone()
             cur.close()
-            from db_postgres import return_connection
+            from db_sqlite import return_connection
             return_connection(conn)
             
             if not deal:
@@ -86,7 +86,7 @@ class NotificationManager:
             
             deal = cur.fetchone()
             cur.close()
-            from db_postgres import return_connection
+            from db_sqlite import return_connection
             return_connection(conn)
             
             if not deal:
@@ -217,7 +217,7 @@ Gunakan /rekber_active untuk melihat dan mengonfirmasi transaksi ini.
                 raise db_error
             finally:
                 cur.close()
-                from db_postgres import return_connection
+                from db_sqlite import return_connection
                 return_connection(conn)
             
         except Exception as e:
@@ -298,7 +298,7 @@ Transaksi selesai otomatis. Dana sudah bisa dicairkan.
                 raise db_error
             finally:
                 cur.close()
-                from db_postgres import return_connection
+                from db_sqlite import return_connection
                 return_connection(conn)
             
         except Exception as e:

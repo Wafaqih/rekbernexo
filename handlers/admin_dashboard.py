@@ -1,6 +1,6 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from db_postgres import get_admin_dashboard_stats, get_connection
+from db_sqlite import get_admin_dashboard_stats, get_connection
 from utils import format_rupiah
 from security import check_admin_permission
 import config

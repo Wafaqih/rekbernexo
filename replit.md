@@ -10,17 +10,21 @@ Preferred communication style: Simple, everyday language.
 
 ## Backend Architecture
 - **Framework**: Python with `python-telegram-bot` library v20.0
-- **Database**: PostgreSQL with connection pooling using `psycopg2`
+- **Database**: SQLite with connection management using `sqlite3`
 - **Bot Architecture**: Event-driven using Telegram's webhook/polling system
 - **Conversation Management**: Multi-state conversation handlers for complex user interactions
 
 ## Database Design
-- **Connection Pool**: ThreadedConnectionPool (2-20 connections) for performance optimization
+- **Database**: SQLite with connection management for simplicity and reliability
 - **Core Tables**: 
   - `deals`: Transaction records with buyer_id, seller_id, status, amounts
   - `ratings`: User rating system (1-5 stars)
   - `logs`: Activity logging for audit trails
   - `payouts`: Payment method information
+  - `users`: User statistics and profile information
+  - `rate_limits`: Rate limiting for security
+  - `disputes`: Dispute management system
+  - `shipments`: Shipping tracking information
 - **Transaction States**: Multi-status workflow (CREATED → WAITING_VERIFICATION → FUNDED → SHIPPED → COMPLETED)
 
 ## Security Features
@@ -56,21 +60,26 @@ Preferred communication style: Simple, everyday language.
 - **Bot Commands**: Rich command set for transaction management
 
 ## Database Services
-- **PostgreSQL**: Primary database with connection string from `DATABASE_URL`
-- **Connection Pooling**: `psycopg2.pool.ThreadedConnectionPool` for scalability
+- **SQLite**: Primary database stored as `rekber.db` file
+- **Connection Management**: Simple connection handling with proper resource cleanup
 
 ## Environment Configuration
 - **BOT_TOKEN**: Telegram Bot API token
-- **DATABASE_URL**: PostgreSQL connection string
 - **ADMIN_IDS**: Comma-separated list of admin user IDs
 - **TESTIMONI_CHANNEL**: Channel for posting testimonials
 
 ## Python Dependencies
 - **python-telegram-bot**: v20.0 for Telegram API integration
-- **psycopg2-binary**: PostgreSQL database adapter
+- **sqlite3**: Built-in SQLite database support
 - **asyncio**: Asynchronous programming support
 
-## Third-party Integrations
-- **Neon Database**: Serverless PostgreSQL hosting (based on server/db.ts)
-- **Drizzle ORM**: Type-safe database queries (server-side)
-- **WebSocket**: Real-time communication support
+## Recent Changes
+
+### Database Migration (September 2025)
+- **Migrated from PostgreSQL to SQLite**: Changed from PostgreSQL with connection pooling to SQLite for simplicity and better local development experience
+- **Removed Dependencies**: Eliminated PostgreSQL dependencies (psycopg2-binary) and server-side components
+- **File Changes**: 
+  - Created new `db_sqlite.py` with all database functions
+  - Updated all handlers to use SQLite syntax (? parameters instead of %s)
+  - Removed `db_postgres.py`, `db_sqlite_fallback.py`, and `server/` directory
+- **Preserved Functionality**: All transaction flows and features remain intact

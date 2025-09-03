@@ -1,79 +1,26 @@
-import os
-import psycopg2
-import psycopg2.extras
-import psycopg2.pool
+import sqlite3
 import random
+import logging
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-import logging
-import asyncio
 from functools import wraps
 
 logger = logging.getLogger(__name__)
 
-# Connection pool untuk performa yang lebih baik
-_connection_pool = None
-
-def init_connection_pool():
-    """Initialize connection pool untuk PostgreSQL"""
-    global _connection_pool
-    if _connection_pool is None:
-        try:
-            _connection_pool = psycopg2.pool.ThreadedConnectionPool(
-                minconn=2,
-                maxconn=20,
-                dsn=os.getenv("DATABASE_URL"),
-                cursor_factory=psycopg2.extras.RealDictCursor
-            )
-            logger.info("Database connection pool initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize database connection pool: {e}")
-            _connection_pool = None
-    return _connection_pool
-
+# Database connection untuk SQLite
 def get_connection():
-    """Mendapatkan koneksi dari pool, fallback to SQLite if PostgreSQL unavailable"""
-    global _connection_pool
-    if _connection_pool is None:
-        init_connection_pool()
-    if _connection_pool is None:
-        # Use SQLite fallback
-        logger.warning("PostgreSQL unavailable, using SQLite fallback")
-        from db_sqlite_fallback import get_sqlite_connection
-        return get_sqlite_connection()
+    """Mendapatkan koneksi SQLite dengan row factory"""
     try:
-        return _connection_pool.getconn()
-    except psycopg2.pool.PoolError as e:
-        logger.error(f"Connection pool exhausted: {e}")
-        # Try to reinitialize pool if exhausted
-        _connection_pool = None
-        init_connection_pool()
-        if _connection_pool is None:
-            # Fallback to SQLite
-            logger.warning("PostgreSQL connection failed, using SQLite fallback")
-            from db_sqlite_fallback import get_sqlite_connection
-            return get_sqlite_connection()
-        return _connection_pool.getconn()
+        conn = sqlite3.connect('rekber.db', check_same_thread=False)
+        conn.row_factory = sqlite3.Row  # Make results dict-like
+        return conn
     except Exception as e:
-        logger.error(f"Database connection error: {e}")
-        # Fallback to SQLite instead of raising exception
-        logger.warning("PostgreSQL error, using SQLite fallback")
-        from db_sqlite_fallback import get_sqlite_connection
-        return get_sqlite_connection()
+        logger.error(f"SQLite connection error: {e}")
+        return None
 
 def return_connection(conn):
-    """Mengembalikan koneksi ke pool"""
-    if _connection_pool:
-        try:
-            _connection_pool.putconn(conn)
-        except:
-            # If it's SQLite connection, just close it
-            try:
-                conn.close()
-            except:
-                pass
-    else:
-        # SQLite connection, just close it
+    """Menutup koneksi SQLite"""
+    if conn:
         try:
             conn.close()
         except:
@@ -85,6 +32,9 @@ def with_db_connection(func):
     def wrapper(*args, **kwargs):
         try:
             conn = get_connection()
+            if conn is None:
+                logger.warning("Database connection failed")
+                return None
             try:
                 result = func(conn, *args, **kwargs)
                 return result
@@ -92,43 +42,34 @@ def with_db_connection(func):
                 return_connection(conn)
         except Exception as e:
             logger.warning(f"Database operation failed: {e}")
-            # Return None or empty result for database failures
             return None
     return wrapper
 
 def init_db():
-    """Inisialisasi schema database PostgreSQL"""
-    # Initialize connection pool first
-    pool = init_connection_pool()
-    if pool is None:
-        logger.warning("Database connection pool failed to initialize. Bot will start without database.")
-        return
-    
+    """Inisialisasi schema database SQLite"""
     try:
         conn = get_connection()
+        if not conn:
+            logger.warning("Database connection failed. Bot will start without database.")
+            return
+        
         cur = conn.cursor()
-    except Exception as e:
-        logger.error(f"Failed to get database connection during init: {e}")
-        logger.warning("Bot will start without database initialization.")
-        return
-    
-    try:
+        
         # Tabel deals (transaksi rekber)
         cur.execute("""
         CREATE TABLE IF NOT EXISTS deals (
-            id VARCHAR(50) PRIMARY KEY,
+            id TEXT PRIMARY KEY,
             title TEXT NOT NULL,
             amount INTEGER NOT NULL,
-            buyer_id BIGINT,
-            seller_id BIGINT,
-            status VARCHAR(50) DEFAULT 'CREATED',
-            fund_status VARCHAR(50) DEFAULT 'UNPAID',
+            buyer_id INTEGER,
+            seller_id INTEGER,
+            status TEXT DEFAULT 'CREATED',
+            fund_status TEXT DEFAULT 'UNPAID',
             admin_fee INTEGER DEFAULT 0,
-            admin_fee_payer VARCHAR(20) DEFAULT 'BUYER',
+            admin_fee_payer TEXT DEFAULT 'BUYER',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            expires_at TIMESTAMP,
-            CONSTRAINT deals_participants_check CHECK (buyer_id IS NOT NULL OR seller_id IS NOT NULL)
+            expires_at TIMESTAMP
         )
         """)
         
@@ -141,11 +82,11 @@ def init_db():
         # Tabel logs (riwayat aktivitas)
         cur.execute("""
         CREATE TABLE IF NOT EXISTS logs (
-            id SERIAL PRIMARY KEY,
-            deal_id VARCHAR(50) NOT NULL,
-            actor_id BIGINT NOT NULL,
-            role VARCHAR(20) NOT NULL,
-            action VARCHAR(50) NOT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            deal_id TEXT NOT NULL,
+            actor_id INTEGER NOT NULL,
+            role TEXT NOT NULL,
+            action TEXT NOT NULL,
             detail TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (deal_id) REFERENCES deals(id) ON DELETE CASCADE
@@ -158,13 +99,13 @@ def init_db():
         # Tabel disputes (sengketa)
         cur.execute("""
         CREATE TABLE IF NOT EXISTS disputes (
-            id SERIAL PRIMARY KEY,
-            deal_id VARCHAR(50) NOT NULL,
-            raised_by BIGINT NOT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            deal_id TEXT NOT NULL,
+            raised_by INTEGER NOT NULL,
             reason TEXT,
             evidence TEXT,
-            status VARCHAR(20) DEFAULT 'OPEN',
-            resolved_by BIGINT,
+            status TEXT DEFAULT 'OPEN',
+            resolved_by INTEGER,
             resolution TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             resolved_at TIMESTAMP,
@@ -175,9 +116,9 @@ def init_db():
         # Tabel shipments (pengiriman)
         cur.execute("""
         CREATE TABLE IF NOT EXISTS shipments (
-            id SERIAL PRIMARY KEY,
-            deal_id VARCHAR(50) NOT NULL,
-            seller_id BIGINT NOT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            deal_id TEXT NOT NULL,
+            seller_id INTEGER NOT NULL,
             tracking_no TEXT,
             courier TEXT,
             proof TEXT,
@@ -189,9 +130,9 @@ def init_db():
         # Tabel ratings (penilaian)
         cur.execute("""
         CREATE TABLE IF NOT EXISTS ratings (
-            id SERIAL PRIMARY KEY,
-            deal_id VARCHAR(50) NOT NULL,
-            user_id BIGINT NOT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            deal_id TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
             rating INTEGER CHECK (rating >= 1 AND rating <= 5),
             comment TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -203,10 +144,10 @@ def init_db():
         # Tabel payouts (pencairan dana)
         cur.execute("""
         CREATE TABLE IF NOT EXISTS payouts (
-            id SERIAL PRIMARY KEY,
-            deal_id VARCHAR(50) UNIQUE NOT NULL,
-            seller_id BIGINT NOT NULL,
-            method VARCHAR(20) NOT NULL CHECK (method IN ('BANK', 'EWALLET')),
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            deal_id TEXT UNIQUE NOT NULL,
+            seller_id INTEGER NOT NULL,
+            method TEXT NOT NULL CHECK (method IN ('BANK', 'EWALLET')),
             bank_name TEXT,
             account_number TEXT,
             account_name TEXT,
@@ -221,13 +162,13 @@ def init_db():
         # Tabel users untuk statistik dan riwayat pengguna
         cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            user_id BIGINT PRIMARY KEY,
+            user_id INTEGER PRIMARY KEY,
             username TEXT,
             first_name TEXT,
             last_name TEXT,
             total_deals INTEGER DEFAULT 0,
             successful_deals INTEGER DEFAULT 0,
-            average_rating DECIMAL(2,1),
+            average_rating REAL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -236,32 +177,35 @@ def init_db():
         # Tabel untuk rate limiting dan security
         cur.execute("""
         CREATE TABLE IF NOT EXISTS rate_limits (
-            user_id BIGINT NOT NULL,
-            action VARCHAR(50) NOT NULL,
+            user_id INTEGER NOT NULL,
+            action TEXT NOT NULL,
             count INTEGER DEFAULT 1,
-            reset_time TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL '1 hour'),
+            reset_time TIMESTAMP DEFAULT (datetime('now', '+1 hour')),
             PRIMARY KEY (user_id, action)
         )
         """)
 
         conn.commit()
-        logger.info("Database PostgreSQL berhasil diinisialisasi")
+        logger.info("Database SQLite berhasil diinisialisasi")
         
     except Exception as e:
-        conn.rollback()
+        if 'conn' in locals():
+            conn.rollback()
         logger.error(f"Error saat inisialisasi database: {e}")
         raise
     finally:
-        cur.close()
-        conn.close()
+        if 'conn' in locals() and conn:
+            if 'cur' in locals():
+                cur.close()
+            conn.close()
 
 @with_db_connection
 def log_action(conn, deal_id: str, actor_id: int, role: str, action: str, detail: str = None):
-    """Mencatat aktivitas ke tabel logs dengan connection pooling"""
+    """Mencatat aktivitas ke tabel logs"""
     cur = conn.cursor()
     try:
         cur.execute(
-            "INSERT INTO logs (deal_id, actor_id, role, action, detail, created_at) VALUES (%s,%s,%s,%s,%s,%s)",
+            "INSERT INTO logs (deal_id, actor_id, role, action, detail, created_at) VALUES (?,?,?,?,?,?)",
             (deal_id, actor_id, role, action, detail or "", datetime.now())
         )
         conn.commit()
@@ -278,6 +222,9 @@ def log_action_bulk(logs_data: List[Dict]):
         return
         
     conn = get_connection()
+    if not conn:
+        return
+        
     cur = conn.cursor()
     try:
         values = [(log['deal_id'], log['actor_id'], log['role'], 
@@ -285,7 +232,7 @@ def log_action_bulk(logs_data: List[Dict]):
                  for log in logs_data]
         
         cur.executemany(
-            "INSERT INTO logs (deal_id, actor_id, role, action, detail, created_at) VALUES (%s,%s,%s,%s,%s,%s)",
+            "INSERT INTO logs (deal_id, actor_id, role, action, detail, created_at) VALUES (?,?,?,?,?,?)",
             values
         )
         conn.commit()
@@ -302,21 +249,16 @@ def save_payout_info(deal_id: str, seller_id: int, method: str,
                     ewallet_provider=None, ewallet_number=None, note=None):
     """Menyimpan informasi pencairan dana"""
     conn = get_connection()
+    if not conn:
+        return
+        
     cur = conn.cursor()
     try:
+        # SQLite doesn't have ON CONFLICT DO UPDATE, so we use INSERT OR REPLACE
         cur.execute("""
-        INSERT INTO payouts (deal_id, seller_id, method, bank_name, account_number, 
-                           account_name, ewallet_provider, ewallet_number, note)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
-        ON CONFLICT(deal_id) DO UPDATE SET
-            seller_id = EXCLUDED.seller_id,
-            method = EXCLUDED.method,
-            bank_name = EXCLUDED.bank_name,
-            account_number = EXCLUDED.account_number,
-            account_name = EXCLUDED.account_name,
-            ewallet_provider = EXCLUDED.ewallet_provider,
-            ewallet_number = EXCLUDED.ewallet_number,
-            note = EXCLUDED.note
+        INSERT OR REPLACE INTO payouts (deal_id, seller_id, method, bank_name, account_number, 
+                       account_name, ewallet_provider, ewallet_number, note)
+        VALUES (?,?,?,?,?,?,?,?,?)
         """, (deal_id, seller_id, method, bank_name, account_number, 
               account_name, ewallet_provider, ewallet_number, note))
         conn.commit()
@@ -331,9 +273,12 @@ def save_payout_info(deal_id: str, seller_id: int, method: str,
 def get_payout_info(deal_id: str) -> Optional[Dict[str, Any]]:
     """Mendapatkan informasi pencairan dana"""
     conn = get_connection()
+    if not conn:
+        return None
+        
     cur = conn.cursor()
     try:
-        cur.execute("SELECT * FROM payouts WHERE deal_id=%s", (deal_id,))
+        cur.execute("SELECT * FROM payouts WHERE deal_id=?", (deal_id,))
         row = cur.fetchone()
         return dict(row) if row else None
     except Exception as e:
@@ -352,6 +297,16 @@ def generate_deal_id() -> str:
 def get_user_stats(user_id: int) -> Dict[str, Any]:
     """Mendapatkan statistik pengguna"""
     conn = get_connection()
+    if not conn:
+        return {
+            'total_deals': 0,
+            'completed_deals': 0, 
+            'cancelled_deals': 0,
+            'success_rate': 0.0,
+            'average_rating': 0.0,
+            'total_ratings': 0
+        }
+        
     cur = conn.cursor()
     try:
         # Statistik deal
@@ -361,17 +316,17 @@ def get_user_stats(user_id: int) -> Dict[str, Any]:
             COUNT(CASE WHEN status = 'COMPLETED' THEN 1 END) as completed_deals,
             COUNT(CASE WHEN status = 'CANCELLED' OR status = 'REFUNDED' THEN 1 END) as cancelled_deals
         FROM deals 
-        WHERE buyer_id = %s OR seller_id = %s
+        WHERE buyer_id = ? OR seller_id = ?
         """, (user_id, user_id))
         
         stats = cur.fetchone()
         
         # Rating rata-rata
         cur.execute("""
-        SELECT AVG(rating)::DECIMAL(2,1) as avg_rating, COUNT(*) as total_ratings
+        SELECT AVG(rating) as avg_rating, COUNT(*) as total_ratings
         FROM ratings r
         JOIN deals d ON r.deal_id = d.id
-        WHERE (d.buyer_id = %s OR d.seller_id = %s) AND r.user_id != %s
+        WHERE (d.buyer_id = ? OR d.seller_id = ?) AND r.user_id != ?
         """, (user_id, user_id, user_id))
         
         rating_stats = cur.fetchone()
@@ -402,20 +357,23 @@ def get_user_stats(user_id: int) -> Dict[str, Any]:
 def check_rate_limit(user_id: int, action: str, max_count: int = 5) -> bool:
     """Mengecek rate limiting untuk mencegah spam"""
     conn = get_connection()
+    if not conn:
+        return True  # Allow on error to prevent blocking legitimate users
+        
     cur = conn.cursor()
     try:
         # Hapus record yang sudah expired
-        cur.execute("DELETE FROM rate_limits WHERE reset_time < CURRENT_TIMESTAMP")
+        cur.execute("DELETE FROM rate_limits WHERE reset_time < datetime('now')")
         
         # Cek current count
-        cur.execute("SELECT count FROM rate_limits WHERE user_id = %s AND action = %s", (user_id, action))
+        cur.execute("SELECT count FROM rate_limits WHERE user_id = ? AND action = ?", (user_id, action))
         row = cur.fetchone()
         
         if not row:
             # Insert new record
             cur.execute("""
             INSERT INTO rate_limits (user_id, action, count, reset_time) 
-            VALUES (%s, %s, 1, CURRENT_TIMESTAMP + INTERVAL '1 hour')
+            VALUES (?, ?, 1, datetime('now', '+1 hour'))
             """, (user_id, action))
             conn.commit()
             return True
@@ -426,7 +384,7 @@ def check_rate_limit(user_id: int, action: str, max_count: int = 5) -> bool:
         # Increment count
         cur.execute("""
         UPDATE rate_limits SET count = count + 1 
-        WHERE user_id = %s AND action = %s
+        WHERE user_id = ? AND action = ?
         """, (user_id, action))
         conn.commit()
         return True
@@ -442,16 +400,15 @@ def check_rate_limit(user_id: int, action: str, max_count: int = 5) -> bool:
 def update_user_activity(user_id: int, username: str = None, first_name: str = None, last_name: str = None):
     """Update aktivitas terakhir pengguna"""
     conn = get_connection()
+    if not conn:
+        return
+        
     cur = conn.cursor()
     try:
+        # SQLite doesn't have ON CONFLICT DO UPDATE, so we use INSERT OR REPLACE
         cur.execute("""
-        INSERT INTO users (user_id, username, first_name, last_name, last_activity)
-        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
-        ON CONFLICT (user_id) DO UPDATE SET
-            username = EXCLUDED.username,
-            first_name = EXCLUDED.first_name,
-            last_name = EXCLUDED.last_name,
-            last_activity = CURRENT_TIMESTAMP
+        INSERT OR REPLACE INTO users (user_id, username, first_name, last_name, last_activity)
+        VALUES (?, ?, ?, ?, datetime('now'))
         """, (user_id, username or "", first_name or "", last_name or ""))
         conn.commit()
     except Exception as e:
@@ -464,6 +421,9 @@ def update_user_activity(user_id: int, username: str = None, first_name: str = N
 def get_admin_dashboard_stats() -> Dict[str, Any]:
     """Mendapatkan statistik untuk dashboard admin"""
     conn = get_connection()
+    if not conn:
+        return {}
+        
     cur = conn.cursor()
     try:
         # Total deals
@@ -484,11 +444,11 @@ def get_admin_dashboard_stats() -> Dict[str, Any]:
         total_volume = cur.fetchone()['total_volume']
         
         # Deals hari ini
-        cur.execute("SELECT COUNT(*) as today FROM deals WHERE DATE(created_at) = CURRENT_DATE")
+        cur.execute("SELECT COUNT(*) as today FROM deals WHERE DATE(created_at) = DATE('now')")
         deals_today = cur.fetchone()['today']
         
         # Active users (activity dalam 30 hari)
-        cur.execute("SELECT COUNT(*) as active FROM users WHERE last_activity > CURRENT_TIMESTAMP - INTERVAL '30 days'")
+        cur.execute("SELECT COUNT(*) as active FROM users WHERE last_activity > datetime('now', '-30 days')")
         active_users = cur.fetchone()['active']
         
         # Pending verifications

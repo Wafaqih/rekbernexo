@@ -1,6 +1,6 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from db_postgres import get_connection, log_action, get_payout_info, get_admin_dashboard_stats
+from db_sqlite import get_connection, log_action, get_payout_info, get_admin_dashboard_stats
 from utils import format_rupiah
 import config
 import logging
@@ -17,7 +17,7 @@ async def rekber_admin_verify(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT buyer_id, seller_id, title, amount, admin_fee, admin_fee_payer FROM deals WHERE id = %s", (deal_id,))
+        cur.execute("SELECT buyer_id, seller_id, title, amount, admin_fee, admin_fee_payer FROM deals WHERE id = ?", (deal_id,))
         row = cur.fetchone()
 
         if not row:
@@ -32,7 +32,7 @@ async def rekber_admin_verify(update: Update, context: ContextTypes.DEFAULT_TYPE
         admin_fee_payer = row['admin_fee_payer']
 
         # Update status ke FUNDED (dana sudah terverifikasi)
-        cur.execute("UPDATE deals SET status = %s WHERE id = %s", ("FUNDED", deal_id))
+        cur.execute("UPDATE deals SET status = ? WHERE id = ?", ("FUNDED", deal_id))
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -76,7 +76,7 @@ async def admin_release_final(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT buyer_id, seller_id, title, amount FROM deals WHERE id=%s", (deal_id,))
+        cur.execute("SELECT buyer_id, seller_id, title, amount FROM deals WHERE id=?", (deal_id,))
         row = cur.fetchone()
     finally:
         cur.close()
@@ -162,7 +162,7 @@ async def admin_release_execute(update: Update, context: ContextTypes.DEFAULT_TY
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT buyer_id, seller_id, title, amount FROM deals WHERE id=%s", (deal_id,))
+        cur.execute("SELECT buyer_id, seller_id, title, amount FROM deals WHERE id=?", (deal_id,))
         row = cur.fetchone()
         if not row:
             await query.edit_message_text("❌ Transaksi tidak ditemukan.")
@@ -170,7 +170,7 @@ async def admin_release_execute(update: Update, context: ContextTypes.DEFAULT_TY
 
         buyer_id, seller_id, title, amount = row
 
-        cur.execute("UPDATE deals SET status='COMPLETED' WHERE id=%s", (deal_id,))
+        cur.execute("UPDATE deals SET status='COMPLETED' WHERE id=?", (deal_id,))
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -238,7 +238,7 @@ async def admin_confirm_payout(update: Update, context: ContextTypes.DEFAULT_TYP
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT buyer_id, seller_id, title, amount FROM deals WHERE id=%s", (deal_id,))
+        cur.execute("SELECT buyer_id, seller_id, title, amount FROM deals WHERE id=?", (deal_id,))
         row = cur.fetchone()
 
         if not row:
@@ -252,7 +252,7 @@ async def admin_confirm_payout(update: Update, context: ContextTypes.DEFAULT_TYP
         amount = int(row['amount'])
 
         # Update status ke COMPLETED
-        cur.execute("UPDATE deals SET status='COMPLETED' WHERE id=%s", (deal_id,))
+        cur.execute("UPDATE deals SET status='COMPLETED' WHERE id=?", (deal_id,))
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -350,7 +350,7 @@ async def rekber_admin_reject(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT buyer_id, seller_id, title FROM deals WHERE id = %s", (deal_id,))
+        cur.execute("SELECT buyer_id, seller_id, title FROM deals WHERE id = ?", (deal_id,))
         row = cur.fetchone()
 
         if not row:
@@ -362,7 +362,7 @@ async def rekber_admin_reject(update: Update, context: ContextTypes.DEFAULT_TYPE
         title = row['title']
 
         # Update status ke PENDING_FUNDING (buyer harus transfer ulang)
-        cur.execute("UPDATE deals SET status = %s WHERE id = %s", ("PENDING_FUNDING", deal_id))
+        cur.execute("UPDATE deals SET status = ? WHERE id = ?", ("PENDING_FUNDING", deal_id))
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -406,7 +406,7 @@ async def rekber_admin_release(update: Update, context: ContextTypes.DEFAULT_TYP
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT buyer_id, seller_id FROM deals WHERE id=%s", (deal_id,))
+        cur.execute("SELECT buyer_id, seller_id FROM deals WHERE id=?", (deal_id,))
         row = cur.fetchone()
 
         if not row:
@@ -416,7 +416,7 @@ async def rekber_admin_release(update: Update, context: ContextTypes.DEFAULT_TYP
         buyer_id, seller_id = row
 
         # update status → RELEASED
-        cur.execute("UPDATE deals SET status='RELEASED' WHERE id=%s", (deal_id,))
+        cur.execute("UPDATE deals SET status='RELEASED' WHERE id=?", (deal_id,))
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -445,7 +445,7 @@ async def rekber_admin_refund(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT buyer_id, seller_id FROM deals WHERE id=%s", (deal_id,))
+        cur.execute("SELECT buyer_id, seller_id FROM deals WHERE id=?", (deal_id,))
         row = cur.fetchone()
 
         if not row:
@@ -455,7 +455,7 @@ async def rekber_admin_refund(update: Update, context: ContextTypes.DEFAULT_TYPE
         buyer_id, seller_id = row
 
         # update status → REFUNDED
-        cur.execute("UPDATE deals SET status='REFUNDED' WHERE id=%s", (deal_id,))
+        cur.execute("UPDATE deals SET status='REFUNDED' WHERE id=?", (deal_id,))
         conn.commit()
     except Exception as e:
         conn.rollback()

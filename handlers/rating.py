@@ -1,6 +1,6 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
-from db_postgres import get_connection, log_action
+from db_sqlite import get_connection, log_action
 import html
 import logging
 
@@ -33,7 +33,7 @@ async def handle_rating(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cur = conn.cursor()
 
     # Check if user already rated this deal
-    cur.execute("SELECT id FROM ratings WHERE deal_id=%s AND user_id=%s", (deal_id, user_id))
+    cur.execute("SELECT id FROM ratings WHERE deal_id=? AND user_id=?", (deal_id, user_id))
     existing = cur.fetchone()
 
     if existing:
@@ -43,7 +43,7 @@ async def handle_rating(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Insert rating
     cur.execute(
-        "INSERT INTO ratings (deal_id, user_id, rating, created_at) VALUES (%s,%s,%s,'now')",
+        "INSERT INTO ratings (deal_id, user_id, rating, created_at) VALUES (?,?,?,'now')",
         (deal_id, user_id, rating)
     )
     rating_id = cur.lastrowid
@@ -124,13 +124,13 @@ async def receive_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cur = conn.cursor()
     
     # Update comment first
-    cur.execute("UPDATE ratings SET comment=%s WHERE id=%s", (comment, rating_id))
+    cur.execute("UPDATE ratings SET comment=? WHERE id=?", (comment, rating_id))
     
     # Get rating details for testimoni
     cur.execute("""
         SELECT deal_id, rating, user_id 
         FROM ratings 
-        WHERE id=%s
+        WHERE id=?
     """, (rating_id,))
     rating_data = cur.fetchone()
     conn.commit()
@@ -213,7 +213,7 @@ async def skip_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cur.execute("""
         SELECT deal_id, rating, user_id 
         FROM ratings 
-        WHERE id=%s
+        WHERE id=?
     """, (rating_id,))
     rating_data = cur.fetchone()
     conn.close()

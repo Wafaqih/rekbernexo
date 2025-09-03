@@ -1,6 +1,6 @@
 
 import asyncio
-from db_postgres import get_connection
+from db_sqlite import get_connection
 import logging
 
 logging.basicConfig(level=logging.DEBUG)

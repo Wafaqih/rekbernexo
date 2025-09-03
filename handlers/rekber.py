@@ -2,7 +2,7 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler, MessageHandler, CommandHandler, CallbackQueryHandler, filters
 from utils import generate_deal_id, format_rupiah, calculate_admin_fee
-from db_postgres import get_connection, log_action, save_payout_info, get_payout_info, check_rate_limit, update_user_activity
+from db_sqlite import get_connection, log_action, save_payout_info, get_payout_info, check_rate_limit, update_user_activity
 from config import BOT_USERNAME, ADMIN_ID
 from datetime import datetime
 import random
@@ -27,11 +27,11 @@ async def is_chat_accessible(context, chat_id):
 
 def debug_transaction_state(deal_id: str, action: str, user_id: int):
     """Helper function to debug transaction states"""
-    from db_postgres import get_connection
+    from db_sqlite import get_connection
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT id, title, status, buyer_id, seller_id FROM deals WHERE id = %s", (deal_id,))
+        cur.execute("SELECT id, title, status, buyer_id, seller_id FROM deals WHERE id = ?", (deal_id,))
         row = cur.fetchone()
         if row:
             logger.info(f"🔍 Transaction Debug - Action: {action}, Deal: {deal_id}, Status: {row['status']}, Buyer: {row['buyer_id']}, Seller: {row['seller_id']}, Current User: {user_id}")
@@ -313,7 +313,7 @@ async def rekber_new_seller(update, context, title, amount, admin_fee):
         try:
             # Insert deal dan log dalam satu transaction
             cur.execute(
-                "INSERT INTO deals (id, title, amount, admin_fee, admin_fee_payer, seller_id, buyer_id, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                "INSERT INTO deals (id, title, amount, admin_fee, admin_fee_payer, seller_id, buyer_id, status) VALUES (?,?,?,?,?,?,?,?)",
                 (
                     deal_id,
                     title,
@@ -328,7 +328,7 @@ async def rekber_new_seller(update, context, title, amount, admin_fee):
             
             # Insert log dalam transaction yang sama
             cur.execute(
-                "INSERT INTO logs (deal_id, actor_id, role, action, detail, created_at) VALUES (%s,%s,%s,%s,%s,%s)",
+                "INSERT INTO logs (deal_id, actor_id, role, action, detail, created_at) VALUES (?,?,?,?,?,?)",
                 (deal_id, user_id, "SELLER", "CREATE", f"Penjual {username} buat transaksi {title} Rp {amount:,}", datetime.now())
             )
             
@@ -339,7 +339,7 @@ async def rekber_new_seller(update, context, title, amount, admin_fee):
             raise
         finally:
             cur.close()
-            from db_postgres import return_connection
+            from db_sqlite import return_connection
             return_connection(conn)
     except Exception as e:
         logger.error(f"Database error in rekber_new_seller: {e}")
@@ -468,7 +468,7 @@ async def rekber_new_buyer(update, context, title, amount, admin_fee):
         conn = get_connection()
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO deals (id, title, amount, admin_fee, admin_fee_payer, buyer_id, seller_id, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+            "INSERT INTO deals (id, title, amount, admin_fee, admin_fee_payer, buyer_id, seller_id, status) VALUES (?,?,?,?,?,?,?,?)",
             (
                 deal_id,
                 title,
@@ -591,7 +591,7 @@ async def rekber_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             conn = get_connection()
             cur = conn.cursor()
-            cur.execute("SELECT id, title, amount, buyer_id, seller_id, status FROM deals WHERE id = %s", (deal_id,))
+            cur.execute("SELECT id, title, amount, buyer_id, seller_id, status FROM deals WHERE id = ?", (deal_id,))
             row = cur.fetchone()
             conn.close()
         except Exception as e:
@@ -728,7 +728,7 @@ async def rekber_join_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
     cur = conn.cursor()
     cur.execute(
         "SELECT id, title, amount, admin_fee, admin_fee_payer, buyer_id, seller_id, status "
-        "FROM deals WHERE id = %s",
+        "FROM deals WHERE id = ?",
         (deal_id,)
     )
     row = cur.fetchone()
@@ -763,11 +763,11 @@ async def rekber_join_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
     updated_seller_id = seller_id
 
     if role == "BUYER":
-        cur.execute("UPDATE deals SET buyer_id = %s WHERE id = %s", (user_id, deal_id))
+        cur.execute("UPDATE deals SET buyer_id = ? WHERE id = ?", (user_id, deal_id))
         updated_buyer_id = user_id
         logger.debug(f"Updated buyer_id to {user_id} for deal {deal_id}")
     elif role == "SELLER":
-        cur.execute("UPDATE deals SET seller_id = %s WHERE id = %s", (user_id, deal_id))
+        cur.execute("UPDATE deals SET seller_id = ? WHERE id = ?", (user_id, deal_id))
         updated_seller_id = user_id
         logger.debug(f"Updated seller_id to {user_id} for deal {deal_id}")
     else:
@@ -778,7 +778,7 @@ async def rekber_join_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn.commit()
 
     # Re-fetch to ensure correct IDs are used
-    cur.execute("SELECT buyer_id, seller_id FROM deals WHERE id = %s", (deal_id,))
+    cur.execute("SELECT buyer_id, seller_id FROM deals WHERE id = ?", (deal_id,))
     verification_row = cur.fetchone()
     if verification_row:
         updated_buyer_id = verification_row['buyer_id']
@@ -790,7 +790,7 @@ async def rekber_join_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     # Check if both roles are now filled and update status
     if updated_buyer_id and updated_seller_id:
-        cur.execute("UPDATE deals SET status = %s WHERE id = %s", ("PENDING_FUNDING", deal_id))
+        cur.execute("UPDATE deals SET status = ? WHERE id = ?", ("PENDING_FUNDING", deal_id))
         conn.commit()
 
         logger.debug(f"Transaction {deal_id} complete - Buyer: {updated_buyer_id}, Seller: {updated_seller_id}, Status: PENDING_FUNDING")
@@ -946,7 +946,7 @@ async def rekber_join_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
     cur = conn.cursor()
     cur.execute(
         "SELECT id, title, amount, admin_fee, admin_fee_payer, buyer_id, seller_id, status "
-        "FROM deals WHERE id = %s",
+        "FROM deals WHERE id = ?",
         (deal_id,)
     )
     row = cur.fetchone()
@@ -981,11 +981,11 @@ async def rekber_join_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
     updated_seller_id = seller_id
 
     if role == "BUYER":
-        cur.execute("UPDATE deals SET buyer_id = %s WHERE id = %s", (user_id, deal_id))
+        cur.execute("UPDATE deals SET buyer_id = ? WHERE id = ?", (user_id, deal_id))
         updated_buyer_id = user_id
         logger.debug(f"Updated buyer_id to {user_id} for deal {deal_id}")
     elif role == "SELLER":
-        cur.execute("UPDATE deals SET seller_id = %s WHERE id = %s", (user_id, deal_id))
+        cur.execute("UPDATE deals SET seller_id = ? WHERE id = ?", (user_id, deal_id))
         updated_seller_id = user_id
         logger.debug(f"Updated seller_id to {user_id} for deal {deal_id}")
     else:
@@ -996,7 +996,7 @@ async def rekber_join_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn.commit()
 
     # Re-fetch to ensure correct IDs are used
-    cur.execute("SELECT buyer_id, seller_id FROM deals WHERE id = %s", (deal_id,))
+    cur.execute("SELECT buyer_id, seller_id FROM deals WHERE id = ?", (deal_id,))
     verification_row = cur.fetchone()
     if verification_row:
         updated_buyer_id = verification_row['buyer_id']
@@ -1008,7 +1008,7 @@ async def rekber_join_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     # Check if both roles are now filled and update status
     if updated_buyer_id and updated_seller_id:
-        cur.execute("UPDATE deals SET status = %s WHERE id = %s", ("PENDING_FUNDING", deal_id))
+        cur.execute("UPDATE deals SET status = ? WHERE id = ?", ("PENDING_FUNDING", deal_id))
         conn.commit()
 
         logger.debug(f"Transaction {deal_id} complete - Buyer: {updated_buyer_id}, Seller: {updated_seller_id}, Status: PENDING_FUNDING")
@@ -1149,7 +1149,7 @@ async def start_payment_handler(update: Update, context: ContextTypes.DEFAULT_TY
     try:
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT title, amount, buyer_id, status FROM deals WHERE id = %s", (deal_id,))
+        cur.execute("SELECT title, amount, buyer_id, status FROM deals WHERE id = ?", (deal_id,))
         row = cur.fetchone()
         conn.close()
     except Exception as e:
@@ -1188,7 +1188,7 @@ async def rekber_funding_menu(context: ContextTypes.DEFAULT_TYPE, user_id: int, 
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT buyer_id, seller_id, admin_fee, admin_fee_payer FROM deals WHERE id = %s",
+        "SELECT buyer_id, seller_id, admin_fee, admin_fee_payer FROM deals WHERE id = ?",
         (deal_id,)
     )
     row = cur.fetchone()
@@ -1314,7 +1314,7 @@ async def rekber_fund_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT buyer_id, seller_id, status, title, amount, admin_fee, admin_fee_payer FROM deals WHERE id=%s", (deal_id,))
+        cur.execute("SELECT buyer_id, seller_id, status, title, amount, admin_fee, admin_fee_payer FROM deals WHERE id=?", (deal_id,))
         row = cur.fetchone()
 
         if not row:
@@ -1338,7 +1338,7 @@ async def rekber_fund_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
             return
 
         # Update status transaksi ke WAITING_VERIFICATION
-        cur.execute("UPDATE deals SET status='WAITING_VERIFICATION' WHERE id=%s", (deal_id,))
+        cur.execute("UPDATE deals SET status='WAITING_VERIFICATION' WHERE id=?", (deal_id,))
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -1393,7 +1393,7 @@ async def rekber_fee_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT seller_id, buyer_id, title, admin_fee FROM deals WHERE id = %s", (deal_id,))
+    cur.execute("SELECT seller_id, buyer_id, title, admin_fee FROM deals WHERE id = ?", (deal_id,))
     row = cur.fetchone()
 
     if not row:
@@ -1444,7 +1444,7 @@ async def rekber_fee_verify(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT seller_id, buyer_id, title FROM deals WHERE id = %s", (deal_id,))
+    cur.execute("SELECT seller_id, buyer_id, title FROM deals WHERE id = ?", (deal_id,))
     row = cur.fetchone()
 
     if not row:
@@ -1483,7 +1483,7 @@ async def rekber_fund_verify(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT seller_id, buyer_id, title FROM deals WHERE id = %s", (deal_id,))
+    cur.execute("SELECT seller_id, buyer_id, title FROM deals WHERE id = ?", (deal_id,))
     row = cur.fetchone()
     conn.close()
 
@@ -1496,7 +1496,7 @@ async def rekber_fund_verify(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # Update status transaksi
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("UPDATE deals SET status = %s WHERE id = %s", ("FUNDED", deal_id))
+    cur.execute("UPDATE deals SET status = ? WHERE id = ?", ("FUNDED", deal_id))
     conn.commit()
     conn.close()
 
@@ -1536,7 +1536,7 @@ async def rekber_admin_verify(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT buyer_id, seller_id, title, amount, admin_fee, admin_fee_payer FROM deals WHERE id = %s", (deal_id,))
+    cur.execute("SELECT buyer_id, seller_id, title, amount, admin_fee, admin_fee_payer FROM deals WHERE id = ?", (deal_id,))
     row = cur.fetchone()
 
     if not row:
@@ -1552,7 +1552,7 @@ async def rekber_admin_verify(update: Update, context: ContextTypes.DEFAULT_TYPE
     admin_fee_payer = row['admin_fee_payer']
 
     # Update status ke FUNDED (dana sudah terverifikasi)
-    cur.execute("UPDATE deals SET status = %s WHERE id = %s", ("FUNDED", deal_id))
+    cur.execute("UPDATE deals SET status = ? WHERE id = ?", ("FUNDED", deal_id))
     conn.commit()
     conn.close()
 
@@ -1585,7 +1585,7 @@ async def rekber_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT buyer_id, seller_id, status, title, amount, admin_fee, admin_fee_payer FROM deals WHERE id = %s",
+        "SELECT buyer_id, seller_id, status, title, amount, admin_fee, admin_fee_payer FROM deals WHERE id = ?",
         (deal_id,)
     )
     row = cur.fetchone()
@@ -1669,7 +1669,7 @@ async def rekber_mark_shipped(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT buyer_id, seller_id, status FROM deals WHERE id=%s", (deal_id,))
+    cur.execute("SELECT buyer_id, seller_id, status FROM deals WHERE id=?", (deal_id,))
     row = cur.fetchone()
     if not row:
         await query.edit_message_text("❌ Transaksi tidak ditemukan.")
@@ -1698,7 +1698,7 @@ async def rekber_mark_shipped(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     # update status jadi AWAITING_CONFIRM
-    cur.execute("UPDATE deals SET status='AWAITING_CONFIRM' WHERE id=%s", (deal_id,))
+    cur.execute("UPDATE deals SET status='AWAITING_CONFIRM' WHERE id=?", (deal_id,))
     conn.commit()
     conn.close()
 
@@ -1727,7 +1727,7 @@ async def rekber_release(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT buyer_id, seller_id, title, amount, admin_fee, admin_fee_payer FROM deals WHERE id = %s",
+        "SELECT buyer_id, seller_id, title, amount, admin_fee, admin_fee_payer FROM deals WHERE id = ?",
         (deal_id,)
     )
     row = cur.fetchone()
@@ -1744,7 +1744,7 @@ async def rekber_release(update: Update, context: ContextTypes.DEFAULT_TYPE):
     admin_fee_payer = row['admin_fee_payer']
 
     # Update status transaksi
-    cur.execute("UPDATE deals SET status = %s WHERE id = %s", ("RELEASED", deal_id))
+    cur.execute("UPDATE deals SET status = ? WHERE id = ?", ("RELEASED", deal_id))
     conn.commit()
     conn.close()
 
@@ -1806,7 +1806,7 @@ async def rekber_dispute(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT buyer_id, seller_id, status FROM deals WHERE id=%s", (deal_id,))
+    cur.execute("SELECT buyer_id, seller_id, status FROM deals WHERE id=?", (deal_id,))
     row = cur.fetchone()
     if not row:
         await query.edit_message_text("❌ Transaksi tidak ditemukan.")
@@ -1822,7 +1822,7 @@ async def rekber_dispute(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # update status → DISPUTED
-    cur.execute("UPDATE deals SET status='DISPUTED' WHERE id=%s", (deal_id,))
+    cur.execute("UPDATE deals SET status='DISPUTED' WHERE id=?", (deal_id,))
     conn.commit()
     conn.close()
 
@@ -1850,7 +1850,7 @@ async def rekber_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cur = conn.cursor()
     cur.execute(
         "SELECT id, title, amount, admin_fee, admin_fee_payer, status "
-        "FROM deals WHERE buyer_id = %s OR seller_id = %s ORDER BY id DESC LIMIT 10",
+        "FROM deals WHERE buyer_id = ? OR seller_id = ? ORDER BY id DESC LIMIT 10",
         (user_id, user_id)
     )
     rows = cur.fetchall()
@@ -1894,7 +1894,7 @@ async def rekber_active(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         SELECT id, title, amount, admin_fee, admin_fee_payer, status
         FROM deals
-        WHERE (buyer_id = %s OR seller_id = %s)
+        WHERE (buyer_id = ? OR seller_id = ?)
           AND status NOT IN ('RELEASED', 'COMPLETED', 'CANCELED')
         ORDER BY id DESC
         """,
@@ -1940,7 +1940,7 @@ async def rekber_done(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         SELECT id, title, amount, admin_fee, admin_fee_payer, status
         FROM deals
-        WHERE (buyer_id = %s OR seller_id = %s)
+        WHERE (buyer_id = ? OR seller_id = ?)
           AND status IN ('RELEASED', 'COMPLETED')
         ORDER BY id DESC LIMIT 10
         """,
@@ -2010,7 +2010,7 @@ async def rekber_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     filter_sql = ""
     params = []
     if month_filter:
-        filter_sql = "WHERE created_at >= %s AND created_at < %s"
+        filter_sql = "WHERE created_at >= ? AND created_at < ?"
         params = [start_date, end_date]
 
     # Total transaksi
@@ -2071,7 +2071,7 @@ async def rekber_funding_cancel(update: Update, context: ContextTypes.DEFAULT_TY
 
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT buyer_id, seller_id, status FROM deals WHERE id=%s", (deal_id,))
+    cur.execute("SELECT buyer_id, seller_id, status FROM deals WHERE id=?", (deal_id,))
     row = cur.fetchone()
 
     if not row:
@@ -2085,7 +2085,7 @@ async def rekber_funding_cancel(update: Update, context: ContextTypes.DEFAULT_TY
         return
 
     # update DB → batal
-    cur.execute("UPDATE deals SET status='CANCELLED' WHERE id=%s", (deal_id,))
+    cur.execute("UPDATE deals SET status='CANCELLED' WHERE id=?", (deal_id,))
     conn.commit()
     conn.close()
 
@@ -2125,7 +2125,7 @@ async def rekber_user_history(update: Update, context: ContextTypes.DEFAULT_TYPE
         """
         SELECT id, title, amount, admin_fee, admin_fee_payer, status, created_at
         FROM deals
-        WHERE buyer_id = %s OR seller_id = %s
+        WHERE buyer_id = ? OR seller_id = ?
         ORDER BY created_at DESC LIMIT 10
         """,
         (user_id, user_id)
@@ -2302,7 +2302,7 @@ async def payout_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT seller_id, status, title FROM deals WHERE id=%s", (deal_id,))
+    cur.execute("SELECT seller_id, status, title FROM deals WHERE id=?", (deal_id,))
     row = cur.fetchone()
 
     if not row:
@@ -2512,11 +2512,11 @@ async def payout_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cur = conn.cursor()
 
     # Check current status first
-    cur.execute("SELECT status FROM deals WHERE id=%s", (deal_id,))
+    cur.execute("SELECT status FROM deals WHERE id=?", (deal_id,))
     current_status = cur.fetchone()
 
     if current_status and current_status['status'] in ['FUNDED', 'AWAITING_CONFIRM', 'RELEASED']:
-        cur.execute("UPDATE deals SET status='AWAITING_PAYOUT' WHERE id=%s", (deal_id,))
+        cur.execute("UPDATE deals SET status='AWAITING_PAYOUT' WHERE id=?", (deal_id,))
         conn.commit()
 
     conn.close()
@@ -2564,7 +2564,7 @@ async def receive_group_link(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # Ambil buyer_id & seller_id dari database
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT buyer_id, seller_id FROM deals WHERE id=%s", (deal_id,))
+    cur.execute("SELECT buyer_id, seller_id FROM deals WHERE id=?", (deal_id,))
     row = cur.fetchone()
     conn.close()
 
@@ -2627,7 +2627,7 @@ async def rekber_cancel_request(update: Update, context: ContextTypes.DEFAULT_TY
     
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT buyer_id, seller_id, status, title FROM deals WHERE id = %s", (deal_id,))
+    cur.execute("SELECT buyer_id, seller_id, status, title FROM deals WHERE id = ?", (deal_id,))
     row = cur.fetchone()
     conn.close()
     
@@ -2696,7 +2696,7 @@ async def rekber_cancel_approve(update: Update, context: ContextTypes.DEFAULT_TY
     
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT buyer_id, seller_id, status, title FROM deals WHERE id = %s", (deal_id,))
+    cur.execute("SELECT buyer_id, seller_id, status, title FROM deals WHERE id = ?", (deal_id,))
     row = cur.fetchone()
     
     if not row:
@@ -2710,7 +2710,7 @@ async def rekber_cancel_approve(update: Update, context: ContextTypes.DEFAULT_TY
     title = row['title']
     
     # Update status transaksi
-    cur.execute("UPDATE deals SET status = 'CANCELLED' WHERE id = %s", (deal_id,))
+    cur.execute("UPDATE deals SET status = 'CANCELLED' WHERE id = ?", (deal_id,))
     conn.commit()
     conn.close()
     
@@ -2755,7 +2755,7 @@ async def rekber_cancel_reject(update: Update, context: ContextTypes.DEFAULT_TYP
     
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT buyer_id, seller_id, title FROM deals WHERE id = %s", (deal_id,))
+    cur.execute("SELECT buyer_id, seller_id, title FROM deals WHERE id = ?", (deal_id,))
     row = cur.fetchone()
     conn.close()
     

@@ -3,7 +3,7 @@ import config
 import signal
 import sys
 import asyncio
-from db_postgres import init_db
+from db_sqlite import init_db
 from handlers.start import start, rekber_create_role, rekber_panduan, show_panduan_page, rekber_main_menu
 from handlers.admin_dashboard import admin_dashboard, admin_pending_actions, admin_user_stats
 from handlers.notifications import init_notifications
