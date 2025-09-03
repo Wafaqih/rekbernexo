@@ -2181,13 +2181,24 @@ async def rekber_user_history(update: Update, context: ContextTypes.DEFAULT_TYPE
         # Status display
         status_display = status_map.get(status, status)
         
+        # Format tanggal - handle string datetime dari SQLite
+        from datetime import datetime
+        if isinstance(created_at, str):
+            try:
+                created_at_obj = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                formatted_date = created_at_obj.strftime('%d/%m/%Y %H:%M')
+            except:
+                formatted_date = created_at[:16]  # Fallback: ambil 16 karakter pertama
+        else:
+            formatted_date = created_at.strftime('%d/%m/%Y %H:%M')
+        
         history_text += (
             f"**{i}. {title[:30]}{'...' if len(title) > 30 else ''}**\n"
             f"🆔 ID: `{deal_id}`\n"
             f"💰 Harga: {format_rupiah(amount)}\n"
             f"💸 Fee: {format_rupiah(admin_fee)} *(ditanggung {admin_fee_payer.lower()})*\n"
             f"📊 Status: {status_display}\n"
-            f"📅 Tanggal: {created_at.strftime('%d/%m/%Y %H:%M')}\n"
+            f"📅 Tanggal: {formatted_date}\n"
         )
         
         # Tambahkan tombol detail jika callback
