@@ -67,6 +67,9 @@ def init_db():
             fund_status TEXT DEFAULT 'UNPAID',
             admin_fee INTEGER DEFAULT 0,
             admin_fee_payer TEXT DEFAULT 'BUYER',
+            payment_proof TEXT,
+            payment_proof_file_id TEXT,
+            joined_by INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             expires_at TIMESTAMP

@@ -61,13 +61,14 @@ from handlers.rekber import (
     start_payment_handler,
     rekber_cancel_request,
     rekber_cancel_approve,
-    rekber_cancel_reject
+    rekber_cancel_reject,
+    handle_payment_proof
 )
 
 from handlers.admin import (
     rekber_admin_verify, rekber_admin_reject, rekber_admin_release, 
     rekber_admin_refund, admin_release_final, admin_release_execute, 
-    admin_confirm_payout
+    admin_confirm_payout, verify_payment_with_proof, reject_payment_with_proof
 )
 from handlers.rating import handle_rating, ask_for_comment, receive_comment, skip_comment, cancel_rating, WAITING_COMMENT, send_testimoni_menu, receive_testimoni, cancel_testimoni, WAITING_TESTIMONI
 
@@ -198,6 +199,8 @@ def main():
     app.add_handler(CallbackQueryHandler(admin_release_final, pattern="^admin_release_final\\|"))
     app.add_handler(CallbackQueryHandler(admin_release_execute, pattern="^admin_release_execute\\|"))
     app.add_handler(CallbackQueryHandler(admin_confirm_payout, pattern="^admin_confirm_payout\\|"))
+    app.add_handler(CallbackQueryHandler(verify_payment_with_proof, pattern="^verify_payment\\|"))
+    app.add_handler(CallbackQueryHandler(reject_payment_with_proof, pattern="^reject_payment\\|"))
 
     # Rating conversation handler - dipindah ke atas agar prioritas
     rating_conv_handler = ConversationHandler(
@@ -221,6 +224,9 @@ def main():
     app.add_handler(CommandHandler("rekber_done", rekber_done))
     app.add_handler(CommandHandler("rekber_stats", rekber_stats))
     app.add_handler(CommandHandler("riwayat", rekber_user_history))
+    
+    # === Photo Handler ===
+    app.add_handler(MessageHandler(filters.PHOTO, handle_payment_proof))
 
     # === Navigation Handlers ===
     app.add_handler(CallbackQueryHandler(rekber_panduan, pattern="^rekber_panduan$"))

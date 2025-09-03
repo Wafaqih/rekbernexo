@@ -618,6 +618,21 @@ async def rekber_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ Kamu tidak bisa join transaksi yang kamu buat sendiri, bagikan link ini ke lawan transaksimu!")
             return
 
+        # ⛔ SECURITY: Cek apakah user sudah pernah join transaksi ini sebagai joined_by
+        # Mencegah double-joining vulnerability
+        try:
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT joined_by FROM deals WHERE id = ? AND joined_by = ?", (deal_id, user_id))
+            already_joined = cur.fetchone()
+            conn.close()
+            
+            if already_joined:
+                await update.message.reply_text("❌ Anda sudah pernah mencoba bergabung dalam transaksi ini. Setiap user hanya bisa join sekali.")
+                return
+        except Exception as e:
+            logger.error(f"Error checking joined_by: {e}")
+
         # Check if transaction is still open for joining
         if status != "PENDING_JOIN":
             if status in ["PENDING_FUNDING", "FUNDED", "AWAITING_CONFIRM"]:
@@ -763,11 +778,11 @@ async def rekber_join_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
     updated_seller_id = seller_id
 
     if role == "BUYER":
-        cur.execute("UPDATE deals SET buyer_id = ? WHERE id = ?", (user_id, deal_id))
+        cur.execute("UPDATE deals SET buyer_id = ?, joined_by = ? WHERE id = ?", (user_id, user_id, deal_id))
         updated_buyer_id = user_id
         logger.debug(f"Updated buyer_id to {user_id} for deal {deal_id}")
     elif role == "SELLER":
-        cur.execute("UPDATE deals SET seller_id = ? WHERE id = ?", (user_id, deal_id))
+        cur.execute("UPDATE deals SET seller_id = ?, joined_by = ? WHERE id = ?", (user_id, user_id, deal_id))
         updated_seller_id = user_id
         logger.debug(f"Updated seller_id to {user_id} for deal {deal_id}")
     else:
@@ -981,11 +996,11 @@ async def rekber_join_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
     updated_seller_id = seller_id
 
     if role == "BUYER":
-        cur.execute("UPDATE deals SET buyer_id = ? WHERE id = ?", (user_id, deal_id))
+        cur.execute("UPDATE deals SET buyer_id = ?, joined_by = ? WHERE id = ?", (user_id, user_id, deal_id))
         updated_buyer_id = user_id
         logger.debug(f"Updated buyer_id to {user_id} for deal {deal_id}")
     elif role == "SELLER":
-        cur.execute("UPDATE deals SET seller_id = ? WHERE id = ?", (user_id, deal_id))
+        cur.execute("UPDATE deals SET seller_id = ?, joined_by = ? WHERE id = ?", (user_id, user_id, deal_id))
         updated_seller_id = user_id
         logger.debug(f"Updated seller_id to {user_id} for deal {deal_id}")
     else:
@@ -1337,8 +1352,8 @@ async def rekber_fund_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
             await query.edit_message_text("⚠️ Transaksi tidak dalam tahap pendanaan.")
             return
 
-        # Update status transaksi ke WAITING_VERIFICATION
-        cur.execute("UPDATE deals SET status='WAITING_VERIFICATION' WHERE id=?", (deal_id,))
+        # Update status transaksi ke WAITING_PAYMENT_PROOF
+        cur.execute("UPDATE deals SET status='WAITING_PAYMENT_PROOF' WHERE id=?", (deal_id,))
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -1350,37 +1365,21 @@ async def rekber_fund_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
         from db_sqlite import return_connection
         return_connection(conn)
 
-    await query.edit_message_text("✅ Konfirmasi transfer diterima. Menunggu verifikasi admin.")
-
-    # Hitung total transfer
-    total_transfer = amount + admin_fee if admin_fee_payer == "BUYER" else amount
-
-    # Ambil username buyer & seller
-    buyer_chat = await context.bot.get_chat(buyer_id)
-    seller_chat = await context.bot.get_chat(seller_id)
-    buyer_username = "@" + buyer_chat.username if buyer_chat.username else buyer_chat.first_name
-    seller_username = "@" + seller_chat.username if seller_chat.username else seller_chat.first_name
-
-    # Notif admin
-    keyboard = [
-        [InlineKeyboardButton("✔️ Dana Masuk", callback_data=f"rekber_admin_verify|{deal_id}")],
-        [InlineKeyboardButton("❌ Tolak", callback_data=f"rekber_admin_reject|{deal_id}")]
-    ]
-    admin_message = (
-        f"🔔 Pembeli sudah transfer untuk Rekber <b>{deal_id}</b>. Mohon verifikasi.\n\n"
-        f"👤 Pembeli: {buyer_username}\n"
-        f"👨‍💼 Penjual: {seller_username}\n"
-        f"🏷️ Judul: {title}\n"
-        f"💰 Nominal: Rp {amount:,}\n"
-        f"💸 Biaya Admin: Rp {admin_fee if admin_fee_payer == 'BUYER' else 0:,}\n"
-        f"💵 Total Transfer: Rp {total_transfer:,}"
+    # Minta user upload bukti pembayaran
+    proof_message = (
+        "📸 **UPLOAD BUKTI PEMBAYARAN**\n\n"
+        "Untuk keamanan transaksi, silakan upload foto/screenshot bukti transfer Anda:\n\n"
+        "✅ **Yang perlu difoto:**\n"
+        "• Screenshot bukti transfer dari aplikasi bank/e-wallet\n"
+        "• Terlihat jelas nominal, waktu, dan tujuan transfer\n"
+        "• Pastikan foto tidak blur atau terpotong\n\n"
+        "⚠️ **Penting:** Admin akan verifikasi bukti ini sebelum melanjutkan transaksi."
     )
-    await context.bot.send_message(
-        chat_id=config.ADMIN_ID,
-        text=admin_message,
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    
+    # Simpan context untuk handler berikutnya
+    context.user_data['awaiting_payment_proof'] = deal_id
+    
+    await query.edit_message_text(proof_message, parse_mode="Markdown")
 
 
 
@@ -1638,18 +1637,27 @@ async def rekber_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Tambahkan tombol berdasarkan status dan user
     if status in ["PENDING_FUNDING", "FUNDED", "AWAITING_CONFIRM"] and (user_id == buyer_id or user_id == seller_id):
         if status == "AWAITING_CONFIRM":
-            # Tambahkan tombol sengketa dan batalkan untuk pembeli
+            # ✅ BALANCED DISPUTE: Both buyer and seller can open dispute
             if user_id == buyer_id:
                 keyboard.extend([
                     [InlineKeyboardButton("✅ Barang Diterima", callback_data=f"rekber_release|{deal_id}")],
                     [InlineKeyboardButton("⚠️ Ajukan Sengketa", callback_data=f"rekber_dispute|{deal_id}")],
                     [InlineKeyboardButton("🚫 Batalkan Transaksi", callback_data=f"rekber_cancel_request|{deal_id}")]
                 ])
-            else:  # seller
-                keyboard.append([InlineKeyboardButton("🚫 Batalkan Transaksi", callback_data=f"rekber_cancel_request|{deal_id}")])
+            else:  # seller - now can also open dispute
+                keyboard.extend([
+                    [InlineKeyboardButton("⚠️ Ajukan Sengketa", callback_data=f"rekber_dispute|{deal_id}")],
+                    [InlineKeyboardButton("🚫 Batalkan Transaksi", callback_data=f"rekber_cancel_request|{deal_id}")]
+                ])
         else:
-            # Tombol batalkan untuk status lain
-            keyboard.append([InlineKeyboardButton("🚫 Batalkan Transaksi", callback_data=f"rekber_cancel_request|{deal_id}")])
+            # Tombol batalkan dan dispute untuk status FUNDED/SHIPPED
+            if status in ["FUNDED", "SHIPPED"]:
+                keyboard.extend([
+                    [InlineKeyboardButton("⚠️ Ajukan Sengketa", callback_data=f"rekber_dispute|{deal_id}")],
+                    [InlineKeyboardButton("🚫 Batalkan Transaksi", callback_data=f"rekber_cancel_request|{deal_id}")]
+                ])
+            else:
+                keyboard.append([InlineKeyboardButton("🚫 Batalkan Transaksi", callback_data=f"rekber_cancel_request|{deal_id}")])
     
     # Tombol kembali
     keyboard.append([InlineKeyboardButton("🏠 Kembali", callback_data="rekber_main_menu")])
@@ -1813,12 +1821,19 @@ async def rekber_dispute(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     buyer_id, seller_id, status = row
-    if user_id != buyer_id:
-        await query.edit_message_text("❌ Hanya pembeli yang bisa membuka sengketa.")
+    
+    # ✅ SECURITY FIX: Allow both buyer and seller to open dispute
+    if user_id != buyer_id and user_id != seller_id:
+        await query.edit_message_text("❌ Anda tidak terdaftar dalam transaksi ini.")
         return
+    
+    # Determine who is opening the dispute
+    dispute_opener = "BUYER" if user_id == buyer_id else "SELLER"
+    opener_name = "Pembeli" if dispute_opener == "BUYER" else "Penjual"
 
-    if status != "AWAITING_CONFIRM":
-        await query.edit_message_text("⚠️ Transaksi belum dalam tahap konfirmasi.")
+    # Allow dispute in multiple states for better protection
+    if status not in ["AWAITING_CONFIRM", "FUNDED", "SHIPPED"]:
+        await query.edit_message_text("⚠️ Sengketa hanya bisa dibuka setelah pembayaran terverifikasi.")
         return
 
     # update status → DISPUTED
@@ -1826,21 +1841,65 @@ async def rekber_dispute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.commit()
     conn.close()
 
-    await query.edit_message_text(f"⚠️ Pembeli telah membuka sengketa untuk Rekber {deal_id}.")
+    await query.edit_message_text(f"⚠️ {opener_name} telah membuka sengketa untuk Rekber {deal_id}.")
 
-    # notif ke admin
-    for admin_id in context.bot_data.get("admin", []):
-        keyboard = [
-            [InlineKeyboardButton("✅ Release ke Penjual", callback_data=f"rekber_admin_release|{deal_id}")],
-            [InlineKeyboardButton("💸 Refund ke Pembeli", callback_data=f"rekber_admin_refund|{deal_id}")],
-            [InlineKeyboardButton("Mediasi", callback_data=f"mediasi|{deal_id}")]
-
-        ]
-        await context.bot.send_message(
-            admin_id,
-            f"⚠️ Sengketa dibuka untuk Rekber {deal_id}. Harap tinjau dan ambil keputusan.",
-            reply_markup=InlineKeyboardMarkup(keyboard)
+    # Record dispute in database for audit trail
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO disputes (deal_id, raised_by, reason, status) VALUES (?, ?, ?, ?)",
+            (deal_id, user_id, f"Dispute dibuka oleh {opener_name}", "OPEN")
         )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Error recording dispute: {e}")
+
+    # Send detailed notification to admin
+    admin_message = (
+        f"🚨 **SENGKETA DIBUKA**\n\n"
+        f"📋 **ID:** `{deal_id}`\n"
+        f"👤 **Dibuka oleh:** {opener_name} ({user_id})\n"
+        f"📊 **Status saat ini:** {status}\n\n"
+        f"⚖️ **Tindakan yang diperlukan:**\n"
+        f"• Review detail transaksi\n"
+        f"• Investigasi masalah\n"
+        f"• Ambil keputusan yang adil\n\n"
+        f"Silakan pilih tindakan:"
+    )
+    
+    keyboard = [
+        [InlineKeyboardButton("✅ Release ke Penjual", callback_data=f"rekber_admin_release|{deal_id}")],
+        [InlineKeyboardButton("💸 Refund ke Pembeli", callback_data=f"rekber_admin_refund|{deal_id}")],
+        [InlineKeyboardButton("🤝 Buat Mediasi", callback_data=f"mediasi|{deal_id}")]
+    ]
+    
+    # Send to admin
+    await context.bot.send_message(
+        chat_id=config.ADMIN_ID,
+        text=admin_message,
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    
+    # Notify the other party about the dispute
+    other_party_id = seller_id if dispute_opener == "BUYER" else buyer_id
+    other_party_name = "Penjual" if dispute_opener == "BUYER" else "Pembeli"
+    
+    other_party_message = (
+        f"⚠️ **SENGKETA DIBUKA**\n\n"
+        f"📋 **ID Transaksi:** `{deal_id}`\n"
+        f"🚨 **{opener_name}** telah membuka sengketa untuk transaksi ini.\n\n"
+        f"Admin akan meninjau kasus ini dan mengambil keputusan yang adil. "
+        f"Anda akan mendapat notifikasi setelah admin memutuskan."
+    )
+    
+    await context.bot.send_message(
+        chat_id=other_party_id,
+        text=other_party_message,
+        parse_mode="Markdown"
+    )
 
 #================REKBER HISTORY=======================
 async def rekber_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2798,3 +2857,86 @@ async def rekber_cancel_reject(update: Update, context: ContextTypes.DEFAULT_TYP
     )
     
     log_action(deal_id, user_id, "USER", "CANCEL_REJECTED", "Pembatalan transaksi ditolak")
+
+# ========== PAYMENT PROOF HANDLER ==========
+async def handle_payment_proof(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler untuk menerima bukti pembayaran dari user"""
+    if not update.message or not update.message.photo:
+        return  # Bukan foto, abaikan
+    
+    user_id = update.effective_user.id
+    deal_id = context.user_data.get('awaiting_payment_proof')
+    
+    if not deal_id:
+        return  # User tidak sedang dalam proses upload bukti
+    
+    # Validasi user adalah buyer dari transaksi ini
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT buyer_id, title, amount, admin_fee, admin_fee_payer, status FROM deals WHERE id=?", (deal_id,))
+        row = cur.fetchone()
+        
+        if not row or row['buyer_id'] != user_id or row['status'] != 'WAITING_PAYMENT_PROOF':
+            await update.message.reply_text("❌ Bukti pembayaran tidak valid untuk transaksi ini.")
+            return
+        
+        title = row['title']
+        amount = int(row['amount'])
+        admin_fee = int(row['admin_fee'])
+        admin_fee_payer = row['admin_fee_payer']
+        
+        # Ambil file photo dengan resolusi tertinggi
+        photo = update.message.photo[-1]
+        file_id = photo.file_id
+        
+        # Simpan bukti pembayaran ke database
+        cur.execute(
+            "UPDATE deals SET payment_proof_file_id=?, status='WAITING_VERIFICATION' WHERE id=?", 
+            (file_id, deal_id)
+        )
+        conn.commit()
+        
+        # Clear context
+        context.user_data.pop('awaiting_payment_proof', None)
+        
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error saving payment proof: {e}")
+        await update.message.reply_text("❌ Terjadi kesalahan saat menyimpan bukti pembayaran.")
+        return
+    finally:
+        cur.close()
+        return_connection(conn)
+    
+    await update.message.reply_text(
+        "✅ Bukti pembayaran berhasil diterima!\n\n"
+        "Admin akan segera memverifikasi pembayaran Anda. "
+        "Anda akan mendapat notifikasi setelah verifikasi selesai."
+    )
+    
+    # Kirim ke admin untuk verifikasi dengan foto bukti
+    total_amount = amount + admin_fee if admin_fee_payer == "BUYER" else amount
+    
+    admin_message = (
+        f"💰 **VERIFIKASI PEMBAYARAN**\n\n"
+        f"📋 **ID:** `{deal_id}`\n"
+        f"📦 **Produk:** {title}\n"
+        f"💵 **Total yang harus dibayar:** {format_rupiah(total_amount)}\n"
+        f"👤 **Pembeli:** [{user_id}](tg://user?id={user_id})\n\n"
+        f"⬇️ **Bukti pembayaran dari pembeli:**"
+    )
+    
+    keyboard = [
+        [InlineKeyboardButton("✅ Verifikasi", callback_data=f"verify_payment|{deal_id}")],
+        [InlineKeyboardButton("❌ Tolak", callback_data=f"reject_payment|{deal_id}")]
+    ]
+    
+    # Kirim foto bukti ke admin
+    await context.bot.send_photo(
+        chat_id=config.ADMIN_ID,
+        photo=file_id,
+        caption=admin_message,
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
