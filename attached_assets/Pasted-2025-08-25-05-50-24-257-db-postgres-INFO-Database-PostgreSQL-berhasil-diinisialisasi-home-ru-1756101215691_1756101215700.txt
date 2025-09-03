@@ -1,0 +1,15 @@
+2025-08-25 05:50:24,257 - db_postgres - INFO - Database PostgreSQL berhasil diinisialisasi
+/home/runner/workspace/main.py:97: PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be tracked for every message. Read this FAQ entry to learn more about the per_* settings: https://github.com/python-telegram-bot/python-telegram-bot/wiki/Frequently-Asked-Questions#what-do-the-per_-settings-in-conversationhandler-do.
+  conv_handler = ConversationHandler(
+/home/runner/workspace/main.py:116: PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be tracked for every message. Read this FAQ entry to learn more about the per_* settings: https://github.com/python-telegram-bot/python-telegram-bot/wiki/Frequently-Asked-Questions#what-do-the-per_-settings-in-conversationhandler-do.
+  conv_handler_testimoni = ConversationHandler(
+/home/runner/workspace/main.py:128: PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be tracked for every message. Read this FAQ entry to learn more about the per_* settings: https://github.com/python-telegram-bot/python-telegram-bot/wiki/Frequently-Asked-Questions#what-do-the-per_-settings-in-conversationhandler-do.
+  payout_conv = ConversationHandler(
+/home/runner/workspace/main.py:151: PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be tracked for every message. Read this FAQ entry to learn more about the per_* settings: https://github.com/python-telegram-bot/python-telegram-bot/wiki/Frequently-Asked-Questions#what-do-the-per_-settings-in-conversationhandler-do.
+  mediasi_conv_handler = ConversationHandler(
+/home/runner/workspace/main.py:190: PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be tracked for every message. Read this FAQ entry to learn more about the per_* settings: https://github.com/python-telegram-bot/python-telegram-bot/wiki/Frequently-Asked-Questions#what-do-the-per_-settings-in-conversationhandler-do.
+  rating_conv_handler = ConversationHandler(
+Starting bot...
+2025-08-25 05:50:29,521 - telegram.ext._application - INFO - Application started
+2025-08-25 05:51:37,434 - handlers.rekber - INFO - 🔍 Transaction Debug - Action: JOIN_ATTEMPT, Deal: RB-20250825-5878, Status: PENDING_JOIN, Buyer: 7842116560, Seller: None, Current User: 8040086203
+2025-08-25 05:51:45,913 - handlers.rekber - INFO - 🔍 Transaction Debug - Action: JOIN_CONFIRM, Deal: RB-20250825-5878, Status: PENDING_JOIN, Buyer: 7842116560, Seller: None, Current User: 8040086203
