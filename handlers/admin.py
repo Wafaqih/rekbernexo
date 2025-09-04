@@ -488,7 +488,11 @@ async def verify_payment_with_proof(update: Update, context: ContextTypes.DEFAUL
         row = cur.fetchone()
 
         if not row:
-            await query.edit_message_text("❌ Transaksi tidak ditemukan.")
+            # Use edit_message_caption for photo messages
+            try:
+                await query.edit_message_caption("❌ Transaksi tidak ditemukan.")
+            except:
+                await query.edit_message_text("❌ Transaksi tidak ditemukan.")
             return
 
         buyer_id = row['buyer_id']
@@ -504,7 +508,10 @@ async def verify_payment_with_proof(update: Update, context: ContextTypes.DEFAUL
     except Exception as e:
         conn.rollback()
         logger.error(f"Error in verify_payment_with_proof: {e}")
-        await query.edit_message_text("❌ Terjadi kesalahan saat verifikasi.")
+        try:
+            await query.edit_message_caption("❌ Terjadi kesalahan saat verifikasi.")
+        except:
+            await query.edit_message_text("❌ Terjadi kesalahan saat verifikasi.")
         return
     finally:
         cur.close()
@@ -531,7 +538,15 @@ async def verify_payment_with_proof(update: Update, context: ContextTypes.DEFAUL
         reply_markup=InlineKeyboardMarkup(keyboard_seller)
     )
 
-    await query.edit_message_text(f"✅ Pembayaran untuk transaksi {deal_id} berhasil diverifikasi.")
+    # Edit photo caption instead of text for photo messages
+    try:
+        await query.edit_message_caption(f"✅ Pembayaran untuk transaksi {deal_id} berhasil diverifikasi.")
+    except:
+        # Fallback to sending new message if edit fails
+        await context.bot.send_message(
+            chat_id=query.from_user.id,
+            text=f"✅ Pembayaran untuk transaksi {deal_id} berhasil diverifikasi."
+        )
 
 async def reject_payment_with_proof(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin handler untuk menolak pembayaran dengan bukti foto"""
@@ -546,7 +561,10 @@ async def reject_payment_with_proof(update: Update, context: ContextTypes.DEFAUL
         row = cur.fetchone()
 
         if not row:
-            await query.edit_message_text("❌ Transaksi tidak ditemukan.")
+            try:
+                await query.edit_message_caption("❌ Transaksi tidak ditemukan.")
+            except:
+                await query.edit_message_text("❌ Transaksi tidak ditemukan.")
             return
 
         buyer_id = row['buyer_id']
@@ -559,7 +577,10 @@ async def reject_payment_with_proof(update: Update, context: ContextTypes.DEFAUL
     except Exception as e:
         conn.rollback()
         logger.error(f"Error in reject_payment_with_proof: {e}")
-        await query.edit_message_text("❌ Terjadi kesalahan saat menolak pembayaran.")
+        try:
+            await query.edit_message_caption("❌ Terjadi kesalahan saat menolak pembayaran.")
+        except:
+            await query.edit_message_text("❌ Terjadi kesalahan saat menolak pembayaran.")
         return
     finally:
         cur.close()
@@ -574,12 +595,12 @@ async def reject_payment_with_proof(update: Update, context: ContextTypes.DEFAUL
     await context.bot.send_message(
         chat_id=buyer_id,
         text=(
-            f"❌ **BUKTI PEMBAYARAN DITOLAK**\\n\\n"
-            f"Bukti pembayaran untuk transaksi <b>{title}</b> tidak dapat diterima.\\n\\n"
-            f"Kemungkinan alasan:\\n"
-            f"• Foto tidak jelas atau blur\\n"
-            f"• Nominal transfer tidak sesuai\\n"
-            f"• Bukti transfer tidak valid\\n\\n"
+            f"❌ <b>BUKTI PEMBAYARAN DITOLAK</b>\n\n"
+            f"Bukti pembayaran untuk transaksi <b>{title}</b> tidak dapat diterima.\n\n"
+            f"Kemungkinan alasan:\n"
+            f"• Foto tidak jelas atau blur\n"
+            f"• Nominal transfer tidak sesuai\n"
+            f"• Bukti transfer tidak valid\n\n"
             f"Silakan upload ulang bukti pembayaran yang benar."
         ),
         parse_mode="HTML"
@@ -592,4 +613,12 @@ async def reject_payment_with_proof(update: Update, context: ContextTypes.DEFAUL
         parse_mode="HTML"
     )
 
-    await query.edit_message_text(f"❌ Bukti pembayaran untuk transaksi {deal_id} ditolak. Pembeli diminta upload ulang.")
+    # Edit photo caption instead of text for photo messages
+    try:
+        await query.edit_message_caption(f"❌ Bukti pembayaran untuk transaksi {deal_id} ditolak. Pembeli diminta upload ulang.")
+    except:
+        # Fallback to sending new message if edit fails
+        await context.bot.send_message(
+            chat_id=query.from_user.id,
+            text=f"❌ Bukti pembayaran untuk transaksi {deal_id} ditolak. Pembeli diminta upload ulang."
+        )

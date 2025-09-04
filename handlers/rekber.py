@@ -1858,11 +1858,11 @@ async def rekber_dispute(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Send detailed notification to admin
     admin_message = (
-        f"🚨 **SENGKETA DIBUKA**\n\n"
-        f"📋 **ID:** `{deal_id}`\n"
-        f"👤 **Dibuka oleh:** {opener_name} ({user_id})\n"
-        f"📊 **Status saat ini:** {status}\n\n"
-        f"⚖️ **Tindakan yang diperlukan:**\n"
+        f"🚨 <b>SENGKETA DIBUKA</b>\n\n"
+        f"📋 <b>ID:</b> <code>{deal_id}</code>\n"
+        f"👤 <b>Dibuka oleh:</b> {opener_name} ({user_id})\n"
+        f"📊 <b>Status saat ini:</b> {status}\n\n"
+        f"⚖️ <b>Tindakan yang diperlukan:</b>\n"
         f"• Review detail transaksi\n"
         f"• Investigasi masalah\n"
         f"• Ambil keputusan yang adil\n\n"
@@ -1879,7 +1879,7 @@ async def rekber_dispute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=config.ADMIN_ID,
         text=admin_message,
-        parse_mode="Markdown",
+        parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
     
@@ -1888,9 +1888,9 @@ async def rekber_dispute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     other_party_name = "Penjual" if dispute_opener == "BUYER" else "Pembeli"
     
     other_party_message = (
-        f"⚠️ **SENGKETA DIBUKA**\n\n"
-        f"📋 **ID Transaksi:** `{deal_id}`\n"
-        f"🚨 **{opener_name}** telah membuka sengketa untuk transaksi ini.\n\n"
+        f"⚠️ <b>SENGKETA DIBUKA</b>\n\n"
+        f"📋 <b>ID Transaksi:</b> <code>{deal_id}</code>\n"
+        f"🚨 <b>{opener_name}</b> telah membuka sengketa untuk transaksi ini.\n\n"
         f"Admin akan meninjau kasus ini dan mengambil keputusan yang adil. "
         f"Anda akan mendapat notifikasi setelah admin memutuskan."
     )
@@ -1898,7 +1898,7 @@ async def rekber_dispute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=other_party_id,
         text=other_party_message,
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
 
 #================REKBER HISTORY=======================
