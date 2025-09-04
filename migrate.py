@@ -21,6 +21,14 @@ try:
 except sqlite3.OperationalError:
     print("Kolom admin_fee_payer sudah ada")
 
+# Tambah kolom joined_by
+try:
+    cur.execute("ALTER TABLE deals ADD COLUMN joined_by INTEGER")
+except sqlite3.OperationalError:
+    print("Kolom joined_by sudah ada")
+
+
+
 conn.commit()
 conn.close()
 print("Migrasi selesai ✅")
