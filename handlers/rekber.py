@@ -2,7 +2,7 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler, MessageHandler, CommandHandler, CallbackQueryHandler, filters
 from utils import generate_deal_id, format_rupiah, calculate_admin_fee
-from db_sqlite import get_connection, log_action, save_payout_info, get_payout_info, check_rate_limit, update_user_activity
+from db_sqlite import get_connection, return_connection, log_action, save_payout_info, get_payout_info, check_rate_limit, update_user_activity
 from config import BOT_USERNAME, ADMIN_ID
 from datetime import datetime
 import random
@@ -2872,6 +2872,10 @@ async def handle_payment_proof(update: Update, context: ContextTypes.DEFAULT_TYP
     
     # Validasi user adalah buyer dari transaksi ini
     conn = get_connection()
+    if not conn:
+        await update.message.reply_text("❌ Terjadi kesalahan koneksi database.")
+        return
+    
     cur = conn.cursor()
     try:
         cur.execute("SELECT buyer_id, title, amount, admin_fee, admin_fee_payer, status FROM deals WHERE id=?", (deal_id,))
@@ -2900,43 +2904,173 @@ async def handle_payment_proof(update: Update, context: ContextTypes.DEFAULT_TYP
         # Clear context
         context.user_data.pop('awaiting_payment_proof', None)
         
+        # Send confirmation to user
+        await update.message.reply_text(
+            "✅ Bukti pembayaran berhasil diterima!\n\n"
+            "Admin akan segera memverifikasi pembayaran Anda. "
+            "Anda akan mendapat notifikasi setelah verifikasi selesai."
+        )
+        
+        # Kirim ke admin untuk verifikasi dengan foto bukti
+        total_amount = amount + admin_fee if admin_fee_payer == "BUYER" else amount
+        
+        admin_message = (
+            f"💰 **VERIFIKASI PEMBAYARAN**\n\n"
+            f"📋 **ID:** `{deal_id}`\n"
+            f"📦 **Produk:** {title}\n"
+            f"💵 **Total yang harus dibayar:** {format_rupiah(total_amount)}\n"
+            f"👤 **Pembeli:** [{user_id}](tg://user?id={user_id})\n\n"
+            f"⬇️ **Bukti pembayaran dari pembeli:**"
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("✅ Verifikasi", callback_data=f"verify_payment|{deal_id}")],
+            [InlineKeyboardButton("❌ Tolak", callback_data=f"reject_payment|{deal_id}")]
+        ]
+        
+        # Kirim foto bukti ke admin
+        try:
+            await context.bot.send_photo(
+                chat_id=config.ADMIN_ID,
+                photo=file_id,
+                caption=admin_message,
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            logger.info(f"Payment proof sent to admin for deal {deal_id}")
+        except Exception as e:
+            logger.error(f"Error sending payment proof to admin: {e}")
+            await update.message.reply_text("⚠️ Bukti pembayaran diterima, namun gagal mengirim ke admin. Silakan hubungi @Nexoitsme")
+        
     except Exception as e:
         conn.rollback()
         logger.error(f"Error saving payment proof: {e}")
         await update.message.reply_text("❌ Terjadi kesalahan saat menyimpan bukti pembayaran.")
-        return
     finally:
         cur.close()
         return_connection(conn)
+
+# ========== PAYMENT VERIFICATION HANDLERS ==========
+async def verify_payment_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler untuk admin memverifikasi pembayaran"""
+    query = update.callback_query
+    await query.answer()
     
-    await update.message.reply_text(
-        "✅ Bukti pembayaran berhasil diterima!\n\n"
-        "Admin akan segera memverifikasi pembayaran Anda. "
-        "Anda akan mendapat notifikasi setelah verifikasi selesai."
-    )
+    deal_id = query.data.split("|")[1]
     
-    # Kirim ke admin untuk verifikasi dengan foto bukti
-    total_amount = amount + admin_fee if admin_fee_payer == "BUYER" else amount
+    conn = get_connection()
+    if not conn:
+        await query.edit_message_caption("❌ Terjadi kesalahan koneksi database.")
+        return
     
-    admin_message = (
-        f"💰 **VERIFIKASI PEMBAYARAN**\n\n"
-        f"📋 **ID:** `{deal_id}`\n"
-        f"📦 **Produk:** {title}\n"
-        f"💵 **Total yang harus dibayar:** {format_rupiah(total_amount)}\n"
-        f"👤 **Pembeli:** [{user_id}](tg://user?id={user_id})\n\n"
-        f"⬇️ **Bukti pembayaran dari pembeli:**"
-    )
+    cur = conn.cursor()
+    try:
+        # Update status transaksi ke FUNDED
+        cur.execute("UPDATE deals SET status='FUNDED' WHERE id=?", (deal_id,))
+        
+        # Get transaction details
+        cur.execute("SELECT buyer_id, seller_id, title FROM deals WHERE id=?", (deal_id,))
+        row = cur.fetchone()
+        
+        if not row:
+            await query.edit_message_caption("❌ Transaksi tidak ditemukan.")
+            return
+        
+        buyer_id = row['buyer_id']
+        seller_id = row['seller_id']
+        title = row['title']
+        
+        conn.commit()
+        
+        # Update admin message
+        await query.edit_message_caption(
+            f"✅ **PEMBAYARAN DIVERIFIKASI**\n\n"
+            f"📋 **ID:** `{deal_id}`\n"
+            f"📦 **Produk:** {title}\n\n"
+            f"Pembayaran telah diverifikasi dan dana aman di admin.",
+            parse_mode="Markdown"
+        )
+        
+        # Notifikasi ke buyer
+        await context.bot.send_message(
+            chat_id=buyer_id,
+            text=f"✅ Pembayaran untuk transaksi <b>{title}</b> ({deal_id}) sudah diverifikasi.\n\nMenunggu penjual mengirim barang/jasa.",
+            parse_mode="HTML"
+        )
+        
+        # Notifikasi ke seller dengan tombol mark shipped
+        keyboard_seller = [[InlineKeyboardButton("📦 Tandai Sudah Dikirim", callback_data=f"rekber_mark_shipped|{deal_id}")]]
+        await context.bot.send_message(
+            chat_id=seller_id,
+            text=f"✅ Pembayaran untuk transaksi <b>{title}</b> ({deal_id}) sudah diverifikasi.\n\nSilakan kirim barang/jasa ke pembeli.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(keyboard_seller)
+        )
+        
+        log_action(deal_id, query.from_user.id, "ADMIN", "VERIFY_PAYMENT", "Admin verifikasi pembayaran")
+        
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error verifying payment: {e}")
+        await query.edit_message_caption("❌ Terjadi kesalahan saat memverifikasi pembayaran.")
+    finally:
+        cur.close()
+        return_connection(conn)
+
+async def reject_payment_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler untuk admin menolak pembayaran"""
+    query = update.callback_query
+    await query.answer()
     
-    keyboard = [
-        [InlineKeyboardButton("✅ Verifikasi", callback_data=f"verify_payment|{deal_id}")],
-        [InlineKeyboardButton("❌ Tolak", callback_data=f"reject_payment|{deal_id}")]
-    ]
+    deal_id = query.data.split("|")[1]
     
-    # Kirim foto bukti ke admin
-    await context.bot.send_photo(
-        chat_id=config.ADMIN_ID,
-        photo=file_id,
-        caption=admin_message,
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    conn = get_connection()
+    if not conn:
+        await query.edit_message_caption("❌ Terjadi kesalahan koneksi database.")
+        return
+    
+    cur = conn.cursor()
+    try:
+        # Update status transaksi kembali ke PENDING_FUNDING
+        cur.execute("UPDATE deals SET status='PENDING_FUNDING', payment_proof_file_id=NULL WHERE id=?", (deal_id,))
+        
+        # Get transaction details
+        cur.execute("SELECT buyer_id, title FROM deals WHERE id=?", (deal_id,))
+        row = cur.fetchone()
+        
+        if not row:
+            await query.edit_message_caption("❌ Transaksi tidak ditemukan.")
+            return
+        
+        buyer_id = row['buyer_id']
+        title = row['title']
+        
+        conn.commit()
+        
+        # Update admin message
+        await query.edit_message_caption(
+            f"❌ **PEMBAYARAN DITOLAK**\n\n"
+            f"📋 **ID:** `{deal_id}`\n"
+            f"📦 **Produk:** {title}\n\n"
+            f"Bukti pembayaran tidak valid atau tidak sesuai.",
+            parse_mode="Markdown"
+        )
+        
+        # Notifikasi ke buyer
+        keyboard_buyer = [[InlineKeyboardButton("💰 Coba Transfer Lagi", callback_data=f"start_payment|{deal_id}")]]
+        await context.bot.send_message(
+            chat_id=buyer_id,
+            text=f"❌ Bukti pembayaran untuk transaksi <b>{title}</b> ({deal_id}) ditolak admin.\n\nSilakan periksa kembali nominal dan metode pembayaran, lalu coba transfer ulang.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(keyboard_buyer)
+        )
+        
+        log_action(deal_id, query.from_user.id, "ADMIN", "REJECT_PAYMENT", "Admin tolak bukti pembayaran")
+        
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error rejecting payment: {e}")
+        await query.edit_message_caption("❌ Terjadi kesalahan saat menolak pembayaran.")
+    finally:
+        cur.close()
+        return_connection(conn)

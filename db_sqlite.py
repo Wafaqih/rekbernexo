@@ -247,6 +247,106 @@ def log_action_bulk(logs_data: List[Dict]):
         cur.close()
         return_connection(conn)
 
+def log_action(deal_id: str, actor_id: int, role: str, action: str, detail: str = None):
+    """Wrapper function untuk log_action tanpa perlu pass connection"""
+    conn = get_connection()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO logs (deal_id, actor_id, role, action, detail, created_at) VALUES (?,?,?,?,?,?)",
+            (deal_id, actor_id, role, action, detail or "", datetime.now())
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error saat mencatat log: {e}")
+    finally:
+        cur.close()
+        return_connection(conn)
+
+def save_payout_info(deal_id: str, seller_id: int, method: str, **kwargs):
+    """Simpan informasi payout ke database"""
+    conn = get_connection()
+    if not conn:
+        return
+    
+    cur = conn.cursor()
+    try:
+        # Create payout table if not exists
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS payouts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                deal_id TEXT,
+                seller_id INTEGER,
+                method TEXT,
+                bank_name TEXT,
+                account_number TEXT,
+                account_name TEXT,
+                ewallet_provider TEXT,
+                ewallet_number TEXT,
+                note TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Delete existing payout info for this deal
+        cur.execute("DELETE FROM payouts WHERE deal_id = ?", (deal_id,))
+        
+        # Insert new payout info
+        cur.execute("""
+            INSERT INTO payouts (deal_id, seller_id, method, bank_name, account_number, account_name, ewallet_provider, ewallet_number, note)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            deal_id, seller_id, method,
+            kwargs.get('bank_name'),
+            kwargs.get('account_number'),
+            kwargs.get('account_name'),
+            kwargs.get('ewallet_provider'),
+            kwargs.get('ewallet_number'),
+            kwargs.get('note')
+        ))
+        
+        conn.commit()
+        logger.info(f"Payout info saved for deal {deal_id}")
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error saving payout info: {e}")
+    finally:
+        cur.close()
+        return_connection(conn)
+
+def get_payout_info(deal_id: str) -> Optional[Dict]:
+    """Ambil informasi payout dari database"""
+    conn = get_connection()
+    if not conn:
+        return None
+    
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT * FROM payouts WHERE deal_id = ?", (deal_id,))
+        row = cur.fetchone()
+        if row:
+            return dict(row)
+        return None
+    except Exception as e:
+        logger.error(f"Error getting payout info: {e}")
+        return None
+    finally:
+        cur.close()
+        return_connection(conn)
+
+def check_rate_limit(user_id: int) -> bool:
+    """Simple rate limiting check"""
+    # For now, always return True (no rate limiting)
+    return True
+
+def update_user_activity(user_id: int, activity: str):
+    """Update user activity"""
+    # Simple logging for now
+    logger.info(f"User {user_id} activity: {activity}")
+
 def save_payout_info(deal_id: str, seller_id: int, method: str,
                     bank_name=None, account_number=None, account_name=None,
                     ewallet_provider=None, ewallet_number=None, note=None):
