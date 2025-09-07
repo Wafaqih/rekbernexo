@@ -5,7 +5,7 @@ Bot Telegram untuk layanan **Rekening Bersama (Rekber)** yang memungkinkan trans
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)
 ![Telegram Bot API](https://img.shields.io/badge/Telegram-Bot%20API-blue.svg)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-blue.svg)
+![SQLite](https://img.shields.io/badge/SQLite-Database-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Production-green.svg)
 
 ## 📋 Daftar Isi
@@ -27,30 +27,30 @@ Bot Telegram untuk layanan **Rekening Bersama (Rekber)** yang memungkinkan trans
 - **Transaksi Aman**: Dana ditahan admin hingga transaksi selesai
 - **Multi-Role Support**: Bisa membuat transaksi sebagai pembeli atau penjual
 - **Flexible Fee**: Biaya admin bisa ditanggung pembeli atau penjual
-- **Auto-Generated Deal ID**: Setiap transaksi mendapat ID unik
+- **Auto-Generated Deal ID**: Setiap transaksi mendapat ID unik format RB-YYMMDDHHMMSS999
 
 ### 💰 Manajemen Pembayaran
-- **Multiple Payment Methods**: Support Bank Transfer dan E-Wallet
-- **Real-time Verification**: Admin verifikasi pembayaran secara manual
+- **Multiple Payment Methods**: Support Bank Transfer dan E-Wallet (Dana, GoPay, SeaBank, Bank Jago)
+- **Real-time Verification**: Admin verifikasi pembayaran dengan foto bukti transfer
 - **Automatic Fee Calculation**: Biaya admin dihitung otomatis berdasarkan nominal
-- **Payout Management**: Sistem pencairan dana yang aman
+- **Payout Management**: Sistem pencairan dana yang aman dengan detail bank/e-wallet
 
 ### 📊 Sistem Rating & Testimoni
-- **Rating System**: Pembeli dan penjual bisa saling memberi rating (1-5)
-- **Testimoni Channel**: Otomatis posting testimoni ke channel Telegram
+- **Rating System**: Pembeli dan penjual bisa saling memberi rating (1-5) dengan emoji
+- **Testimoni Channel**: Otomatis posting testimoni ke channel @testirekberbotNEXO
 - **Comment System**: Support komentar pada rating
-- **Public Testimonials**: Testimoni dapat dilihat publik
+- **Public Testimonials**: Testimoni dapat dilihat publik di channel
 
 ### 🛡️ Security & Monitoring
 - **Rate Limiting**: Pencegahan spam dan abuse
 - **Input Validation**: Validasi ketat untuk semua input user
-- **Activity Logging**: Log semua aktivitas transaksi
-- **Dispute Resolution**: Sistem mediasi untuk sengketa
+- **Activity Logging**: Log semua aktivitas transaksi dengan timestamps
+- **Dispute Resolution**: Sistem mediasi untuk sengketa dengan grup WhatsApp
 
 ### 📱 User Experience
 - **Interactive Keyboards**: Navigasi mudah dengan inline keyboard
 - **Status Tracking**: Real-time tracking status transaksi
-- **History Management**: Riwayat lengkap semua transaksi
+- **History Management**: Riwayat lengkap semua transaksi per user
 - **Multi-language Support**: Interface dalam Bahasa Indonesia
 
 ## 🔄 Cara Kerja
@@ -66,15 +66,16 @@ Bot Telegram untuk layanan **Rekening Bersama (Rekber)** yang memungkinkan trans
 ### Untuk Pembeli:
 1. **Join Transaksi** → Klik link dari penjual
 2. **Transfer Dana** → Bayar ke rekening admin sesuai instruksi
-3. **Tunggu Verifikasi** → Admin verifikasi pembayaran
-4. **Terima Barang** → Penjual kirim barang/jasa
-5. **Konfirmasi** → Konfirmasi penerimaan untuk release dana
+3. **Kirim Bukti** → Upload foto bukti transfer
+4. **Tunggu Verifikasi** → Admin verifikasi pembayaran
+5. **Terima Barang** → Penjual kirim barang/jasa
+6. **Konfirmasi** → Konfirmasi penerimaan untuk release dana
 
 ## 🚀 Instalasi
 
 ### Prerequisites
 - Python 3.11+
-- PostgreSQL Database
+- SQLite Database (otomatis terbuat)
 - Telegram Bot Token
 
 ### Quick Start di Replit
@@ -90,9 +91,8 @@ Bot Telegram untuk layanan **Rekening Bersama (Rekber)** yang memungkinkan trans
    ```
    BOT_TOKEN=your_telegram_bot_token
    BOT_USERNAME=your_bot_username
-   DATABASE_URL=postgresql://username:password@hostname:port/database
    ADMIN_ID=your_telegram_user_id
-   TESTIMONI_CHANNEL=@your_testimoni_channel
+   TESTIMONI_CHANNEL=@testirekberbotNEXO
    ```
 
 3. **Deploy**
@@ -117,7 +117,7 @@ Bot Telegram untuk layanan **Rekening Bersama (Rekber)** yang memungkinkan trans
 
 3. **Setup Database**
    ```bash
-   python -c "from db_postgres import init_db; init_db()"
+   python migrate.py
    ```
 
 4. **Run Bot**
@@ -132,29 +132,24 @@ Bot Telegram untuk layanan **Rekening Bersama (Rekber)** yang memungkinkan trans
 | Variable | Deskripsi | Required | Default |
 |----------|-----------|----------|---------|
 | `BOT_TOKEN` | Token bot dari @BotFather | ✅ | - |
-| `BOT_USERNAME` | Username bot (tanpa @) | ✅ | - |
-| `DATABASE_URL` | PostgreSQL connection string | ✅ | - |
-| `ADMIN_ID` | User ID admin utama | ✅ | - |
-| `TESTIMONI_CHANNEL` | Channel untuk posting testimoni | ❌ | @testirekberbotNEXO |
+| `BOT_USERNAME` | Username bot (tanpa @) | ❌ | - |
+| `ADMIN_ID` | User ID admin utama | ✅ | 7058869200 |
+| `TESTIMONI_CHANNEL` | Channel untuk posting testimoni | ❌ | @TESTIJASAREKBER |
 
-### Bot Configuration
-File `config.py` berisi konfigurasi utama:
+### Metode Pembayaran
+
 ```python
-# Biaya admin berdasarkan nominal
-FEE_STRUCTURE = {
-    (1000, 100000): 2000,      # 1k-100k = 2k
-    (100001, 500000): 5000,    # 100k-500k = 5k  
-    (500001, float('inf')): 0.01  # >500k = 1%
+PAYMENT_METHODS = {
+    "DANA": "082119299186 | Muhammad Abdu Wafaqih",
+    "GOPAY": "082119299186 | Wafaqih", 
+    "SEABANK": "901251081230 | Muhammad Abdu Wafaqih",
+    "BANK_JAGO": "103536428831 | Muhammad Abdu Wafaqih"
 }
-
-# Rate limiting
-RATE_LIMIT_SECONDS = 30
-MAX_MESSAGE_LENGTH = 4096
 ```
 
 ## 🗃️ Struktur Database
 
-### Tabel Utama
+### Tabel Utama (SQLite)
 
 #### `deals` - Transaksi Rekber
 ```sql
@@ -166,6 +161,8 @@ MAX_MESSAGE_LENGTH = 4096
 - status: VARCHAR(50) (PENDING_JOIN, FUNDED, COMPLETED, dll)
 - admin_fee: INTEGER (Biaya admin)
 - admin_fee_payer: VARCHAR(20) (BUYER/SELLER)
+- joined_by: INTEGER (User ID yang join terakhir)
+- payment_proof_file_id: TEXT (File ID bukti pembayaran)
 ```
 
 #### `logs` - Activity Logs
@@ -175,6 +172,7 @@ MAX_MESSAGE_LENGTH = 4096
 - role: VARCHAR(20) (BUYER/SELLER/ADMIN)
 - action: VARCHAR(50) (CREATE, JOIN, FUND, RELEASE, dll)
 - detail: TEXT (Detail aktivitas)
+- timestamp: DATETIME DEFAULT CURRENT_TIMESTAMP
 ```
 
 #### `ratings` - Sistem Rating
@@ -183,6 +181,7 @@ MAX_MESSAGE_LENGTH = 4096
 - user_id: BIGINT (User pemberi rating)
 - rating: INTEGER (1-5)
 - comment: TEXT (Komentar opsional)
+- timestamp: DATETIME DEFAULT CURRENT_TIMESTAMP
 ```
 
 #### `payouts` - Data Pencairan
@@ -190,7 +189,10 @@ MAX_MESSAGE_LENGTH = 4096
 - deal_id: VARCHAR(50) (Foreign Key ke deals)
 - seller_id: BIGINT (Penjual)
 - method: VARCHAR(20) (BANK/EWALLET)
-- account_details: JSON (Detail rekening)
+- bank_name: TEXT (Nama bank)
+- account_number: TEXT (Nomor rekening)
+- account_holder: TEXT (Nama pemegang rekening)
+- notes: TEXT (Catatan tambahan)
 ```
 
 ## 📱 Penggunaan
@@ -205,6 +207,7 @@ MAX_MESSAGE_LENGTH = 4096
 ### Commands untuk Admin
 
 - `/admin` - Dashboard admin
+- `/dashboard` - Dashboard admin (alias)
 - `/rekber_stats [YYYY-MM]` - Statistik transaksi
 
 ### Status Transaksi
@@ -251,18 +254,21 @@ def validate_phone_number(phone: str) -> bool:
 
 ```
 📁 handlers/
-├── start.py          # Menu utama & navigasi
-├── rekber.py         # Logic transaksi rekber
-├── admin.py          # Functions admin
-├── rating.py         # Sistem rating & testimoni
-└── notifications.py  # Sistem notifikasi
+├── start.py              # Menu utama & navigasi
+├── rekber.py            # Logic transaksi rekber
+├── admin.py             # Functions admin
+├── admin_dashboard.py   # Dashboard admin
+├── rating.py            # Sistem rating & testimoni
+├── notifications.py     # Sistem notifikasi
+└── ux_helpers.py        # Helper untuk UX
 
 📁 root/
-├── main.py           # Entry point aplikasi
-├── config.py         # Konfigurasi
-├── db_postgres.py    # Database operations
-├── utils.py          # Helper functions
-└── security.py       # Security utilities
+├── main.py              # Entry point aplikasi
+├── config.py            # Konfigurasi
+├── db_sqlite.py         # Database operations
+├── migrate.py           # Database migration
+├── utils.py             # Helper functions
+└── security.py          # Security utilities
 ```
 
 ### Flow Architecture
@@ -283,7 +289,7 @@ Rate Limit → Input Sanitize → Process Transaction → Log Action → Send Me
 ### Production Settings
 ```python
 # Replit automatically handles:
-- Process management
+- Process management (Reserved VM)
 - Auto-restart on crash
 - Load balancing
 - SSL certificates
@@ -344,14 +350,14 @@ python fix_stuck_transactions.py
 
 **Database connection error**
 ```bash
-# Verify DATABASE_URL
-# Check PostgreSQL status
-# Review connection pool settings
+# Check rekber.db file permissions
+# Run migration: python migrate.py
+# Verify SQLite installation
 ```
 
 **Rate limiting issues**
 ```bash
-# Check rate_limits table
+# Check activity logs
 # Adjust rate limiting parameters
 # Monitor user activity
 ```
@@ -359,18 +365,18 @@ python fix_stuck_transactions.py
 ## 📈 Roadmap
 
 ### Upcoming Features
+- [ ] **QRIS Payment**: Integrasi pembayaran QRIS
 - [ ] **Multi-currency Support**: Support mata uang selain Rupiah
 - [ ] **Smart Contracts**: Integrasi blockchain untuk transparansi
 - [ ] **Mobile App**: Aplikasi mobile native
 - [ ] **API Integration**: RESTful API untuk integrasi eksternal
 - [ ] **Advanced Analytics**: Dashboard analytics yang lebih detail
-- [ ] **Auto Dispute Resolution**: AI-powered dispute resolution
 
 ### Performance Improvements
 - [ ] **Caching Layer**: Redis untuk cache data
 - [ ] **Message Queue**: Async processing untuk high load
-- [ ] **CDN Integration**: Asset delivery optimization
-- [ ] **Database Sharding**: Horizontal scaling strategy
+- [ ] **Database Migration**: PostgreSQL untuk production scale
+- [ ] **Auto-scaling**: Horizontal scaling strategy
 
 ## 🤝 Contributing
 
@@ -412,7 +418,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## 🙏 Acknowledgments
 
 - [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot) - Telegram Bot framework
-- [PostgreSQL](https://postgresql.org) - Database system
+- [SQLite](https://sqlite.org) - Lightweight database system
 - [Replit](https://replit.com) - Development & hosting platform
 
 ---
