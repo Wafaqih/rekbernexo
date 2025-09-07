@@ -129,11 +129,7 @@ async def rekber_create_title(update: Update, context: ContextTypes.DEFAULT_TYPE
         "• `150000` (untuk Rp 150.000)\n"
         "• `1500000` (untuk Rp 1.500.000)\n"
         "• `50000` (untuk Rp 50.000)\n\n"
-        "📊 **Estimasi Biaya Admin:**\n"
-        "• Rp 1k-100k → Biaya Rp 2k-5k\n"
-        "• Rp 100k-500k → Biaya Rp 5k\n"
-        "• Rp 500k+ → Biaya 0.5-1%\n\n"
-        "⚠️ *Minimum transaksi: Rp 1.000*"
+        "⚠️ *Belum termasuk biaya admin*"
     )
 
     await update.message.reply_text(
@@ -193,14 +189,6 @@ async def rekber_create_amount(update: Update, context: ContextTypes.DEFAULT_TYP
         f"📊 **Total:** {format_rupiah(amount + admin_fee)}\n\n"
 
         "👤 **Siapa yang akan menanggung biaya admin?**\n\n"
-
-        "🔹 **Ditanggung Pembeli:**\n"
-        f"   • Pembeli transfer: {format_rupiah(amount + admin_fee)}\n"
-        f"   • Penjual terima: {format_rupiah(amount)}\n\n"
-
-        "🔹 **Ditanggung Penjual:**\n"
-        f"   • Pembeli transfer: {format_rupiah(amount)}\n"
-        f"   • Penjual terima: {format_rupiah(amount - admin_fee)}\n\n"
 
         "💡 *Tips: Umumnya biaya admin ditanggung pembeli*"
     )
@@ -411,8 +399,6 @@ async def rekber_new_seller(update, context, title, amount, admin_fee):
         try:
             invite_template = (
                 f"🔗 LINK UNDANGAN UNTUK PEMBELI:\n\n"
-                f"{invite_link}\n\n"
-                f"📝 Template pesan untuk pembeli:\n\n"
                 f"Halo! Saya sudah buat transaksi rekber untuk:\n"
                 f"📦 {title}\n"
                 f"💰 {format_rupiah(buyer_total)}\n\n"
@@ -552,8 +538,6 @@ async def rekber_new_buyer(update, context, title, amount, admin_fee):
     try:
         invite_template = (
             f"🔗 LINK UNDANGAN UNTUK PENJUAL:\n\n"
-            f"{invite_link}\n\n"
-            f"📝 Template pesan untuk penjual:\n\n"
             f"Halo! Saya ingin membeli:\n"
             f"📦 {title}\n"
             f"💰 {format_rupiah(amount)}\n\n"
@@ -894,7 +878,7 @@ async def rekber_join_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         # Notify admin
         admin_notif = (
-            f"📢 <b>Transaksi Rekber Lengkap</b>\n\n"
+            f"📢 <b>Transaksi Rekber Baru !</b>\n\n"
             f"🏷️ ID: <code>{deal_id}</code>\n"
             f"📝 Judul: {title}\n"
             f"💰 Nominal: Rp {amount:,}\n"
@@ -1112,7 +1096,7 @@ async def rekber_join_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         # Notify admin
         admin_notif = (
-            f"📢 <b>Transaksi Rekber Lengkap</b>\n\n"
+            f"📢 <b>Transaksi Rekber Baru !</b>\n\n"
             f"🏷️ ID: <code>{deal_id}</code>\n"
             f"📝 Judul: {title}\n"
             f"💰 Nominal: Rp {amount:,}\n"
@@ -2436,8 +2420,7 @@ async def payout_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     kb = [
         [InlineKeyboardButton("🏦 Bank Transfer", callback_data="payout_method|BANK")],
-        [InlineKeyboardButton("📱 E-Wallet", callback_data="payout_method|EWALLET")],
-        [InlineKeyboardButton("❌ Batal", callback_data="payout_cancel")]
+        [InlineKeyboardButton("📱 E-Wallet", callback_data="payout_method|EWALLET")]
     ]
     await query.edit_message_text(
         f"💳 *Pencairan Dana Rekber* `{deal_id}`\n\n"
@@ -2457,8 +2440,7 @@ async def payout_pick_method(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # User wants to update existing payout, show method selection again
         kb = [
             [InlineKeyboardButton("🏦 Bank Transfer", callback_data="payout_method|BANK")],
-            [InlineKeyboardButton("📱 E-Wallet", callback_data="payout_method|EWALLET")],
-            [InlineKeyboardButton("❌ Batal", callback_data="payout_cancel")]
+            [InlineKeyboardButton("📱 E-Wallet", callback_data="payout_method|EWALLET")]
         ]
         await query.edit_message_text(
             "💳 *Pilih Metode Pencairan Baru:*",
@@ -2502,7 +2484,7 @@ async def payout_bank_number(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def payout_bank_holder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["account_name"] = update.message.text.strip()
-    await update.message.reply_text("📝 Catatan tambahan (opsional). Ketik '-' jika tidak ada:")
+    await update.message.reply_text("📝 Catatan tambahan (opsional). Ketik - jika tidak ada:")
     return PAY_NOTE
 
 # --- EWALLET flow ---
@@ -2526,7 +2508,7 @@ async def payout_ew_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return PAY_EW_NUMBER
 
     context.user_data["ewallet_number"] = ewallet_number
-    await update.message.reply_text("📝 Catatan tambahan (opsional). Ketik '-' jika tidak ada:")
+    await update.message.reply_text("📝 Catatan tambahan (opsional). Ketik - jika tidak ada:")
     return PAY_NOTE
 
 # --- FINAL SAVE (kedua flow masuk sini) ---

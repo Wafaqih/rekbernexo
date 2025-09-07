@@ -21,7 +21,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         # Mode: start normal tanpa argumen
         welcome_text = (
-            "🎆 *Selamat datang di REKBER-BOT by Nexo!*\n\n"
+            "🎆 *Selamat datang di NEXO REKBER !*\n\n"
             "🚀 *Buat Rekber* - Mulai transaksi aman sebagai pembeli atau penjual\n"
             "📄 *Riwayat Rekber* - Lihat history transaksi Anda\n"
             "📝 *Kirim Testimoni* - Bagikan pengalaman transaksi Anda\n"
@@ -116,21 +116,20 @@ async def show_panduan_page(query, page: int):
     elif page == 2:
         text = (
             "📜 *Panduan Rekber Bot* (2/4)\n\n"
-
             "💻 *BIAYA ADMIN REKBER*\n\n"
-
             "```bash\n"
-            "[TIER 1]  <= Rp50.000               :: Rp2.000\n"
-            "[TIER 2]  <= Rp50.001 - 100.000  :: Rp3.000\n"
-            "[TIER 3]  Rp100.001 - 500.000     :: Rp5.000\n"
-            "[TIER 4]  Rp500.001 - 1.000.000  :: 1% dari nominal\n"
-            "[TIER 5]  Rp1.000.001-5.000.000  :: 0.7% dari nominal\n"
-            "[TIER 6]  > Rp5.000.000             :: 0.5% dari nominal\n"
+            "[TIER 1]  < Rp20.000                :: Rp1.500\n"
+            "[TIER 2]  Rp20.000 - 49.999         :: Rp3.000\n"
+            "[TIER 3]  Rp50.000 - 100.000        :: Rp5.000\n"
+            "[TIER 4]  Rp100.001 - 499.999       :: Rp10.000\n"
+            "[TIER 5]  Rp500.000 - 999.999       :: Rp15.000\n"
+            "[TIER 6]  > Rp1.000.000             :: 1.5% - 2% dari nominal\n"
             "```\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "⚡ *Note:* biaya admin dihitung otomatis oleh sistem.\n"
             "━━━━━━━━━━━━━━ NEXT ▷▷ PAYMENT\n"
-            )
+        )
+
 
 
 
@@ -213,7 +212,7 @@ async def rekber_main_menu(update_or_query, context: ContextTypes.DEFAULT_TYPE):
         target = update_or_query.message.reply_text
 
     welcome_text = (
-        "🎆 *Selamat datang di REKBER-BOT by Nexo!*\n\n"
+        "🎆 *Selamat datang di NEXO REKBER !*\n\n"
         "🚀 *Buat Rekber* - Mulai transaksi aman sebagai pembeli atau penjual\n"
         "📄 *Riwayat Rekber* - Lihat history transaksi Anda\n"
         "📝 *Kirim Testimoni* - Bagikan pengalaman transaksi Anda\n"

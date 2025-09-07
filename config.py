@@ -7,7 +7,7 @@ if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable is required")
 BOT_USERNAME = os.getenv("BOT_USERNAME")
 ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "").split(",") if id]
-TESTIMONI_CHANNEL = os.getenv("TESTIMONI_CHANNEL", "@testirekberbotNEXO")
+TESTIMONI_CHANNEL = os.getenv("TESTIMONI_CHANNEL", "@TESTIJASAREKBER")
 ADMIN_ID = 7058869200
 
 # Logging configuration

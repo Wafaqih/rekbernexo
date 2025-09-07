@@ -175,7 +175,7 @@ async def receive_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"💬 *Komentar:*\n"
         f"❝ _{safe_comment}_ ❞\n\n"
         f"━━━━━━━━━━━━━━━\n"
-        f"🤖 *REKBER\\-BOT by Nexo*"
+        f"🤖 *Nexo Rekber*"
     )
 
     try:
@@ -235,7 +235,7 @@ async def skip_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🌟 *TESTIMONI REKBER*\n\n"
             f"👤 {safe_username} memberikan ulasan {stars} untuk transaksi `{safe_deal_id}`\n\n"
             f"━━━━━━━━━━━━━━━\n"
-            f"🤖 *REKBER\\-BOT by Nexo*"
+            f"🤖 *Nexo Rekber*"
         )
 
         try:
@@ -331,7 +331,7 @@ async def receive_testimoni(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         footer = (
             f"\n\n━━━━━━━━━━━━━━━\n"
-            f"🤖 *REKBER\\-BOT by Nexo*"
+            f"🤖 *Nexo Rekber*"
         )
 
         if update.message.photo:

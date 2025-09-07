@@ -22,7 +22,7 @@ async def admin_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Format pesan statistik
         dashboard_text = f"""
-📊 **DASHBOARD ADMIN REKBER-BOT**
+📊 **DASHBOARD ADMIN NEXOREKBER**
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 📈 **STATISTIK UMUM**

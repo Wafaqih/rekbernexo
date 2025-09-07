@@ -60,12 +60,21 @@ def format_rupiah(n) -> str:
     formatted = f"Rp {amount:,}"
     return formatted.replace(",", ".")
 
-def calculate_admin_fee(amount: int) -> int:
-    if amount <= 100_000:
-        return 2000
-    elif amount <= 500_000:
+def calculate_admin_fee(amount: int, rate: float = 0.015) -> int:
+    """
+    Hitung biaya admin sesuai tabel.
+    rate hanya dipakai kalau amount > 1.000.000
+    default rate = 1.5% (0.015)
+    """
+    if amount < 20_000:
+        return 1500
+    elif amount <= 49_999:
+        return 3000
+    elif amount <= 100_000:
         return 5000
-    elif amount <= 1_000_000:
-        return int(amount * 0.01)  # 1%
+    elif amount <= 499_999:
+        return 10000
+    elif amount <= 999_999:
+        return 15000
     else:
-        return int(amount * 0.005)  # 0.5%
+        return int(amount * rate)  # 1.5% – 2%
