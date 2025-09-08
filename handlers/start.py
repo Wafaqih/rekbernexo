@@ -35,7 +35,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("📄 Riwayat Rekber", callback_data="rekber_user_history"),
             InlineKeyboardButton("📜 Panduan", callback_data="rekber_panduan")],
             [InlineKeyboardButton("📝 Kirim Testimoni", callback_data="send_testimoni_menu"),
-             InlineKeyboardButton("🔍 Cek Testimoni", url="https://t.me/testirekberbotNEXO")],
+             InlineKeyboardButton("🔍 Cek Testimoni", url="https://t.me/TESTIJASAREKBER")],
 
         ]
         await update.message.reply_text(
@@ -225,7 +225,7 @@ async def rekber_main_menu(update_or_query, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🚀 Buat Rekber", callback_data="rekber_create_role")],
         [InlineKeyboardButton("📄 Riwayat Rekber", callback_data="rekber_history_menu")],
         [InlineKeyboardButton("📝 Kirim Testimoni", callback_data="send_testimoni_menu"),
-         InlineKeyboardButton("🔍 Cek Testimoni", url="https://t.me/testirekberbotNEXO")],
+         InlineKeyboardButton("🔍 Cek Testimoni", url="https://t.me/TESTIJASAREKBER")],
         [InlineKeyboardButton("📜 Panduan", callback_data="rekber_panduan")]
     ]
 
