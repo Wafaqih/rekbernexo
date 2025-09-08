@@ -1,10 +1,15 @@
 import os
 import logging
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
 
 # Bot configuration
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable is required")
+
 BOT_USERNAME = os.getenv("BOT_USERNAME")
 ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "").split(",") if id]
 TESTIMONI_CHANNEL = os.getenv("TESTIMONI_CHANNEL", "@TESTIJASAREKBER")
